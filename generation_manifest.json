@@ -1,0 +1,981 @@
+{
+  "pack_name": "argument_critic_agent_full_pack",
+  "version": "1.1.0",
+  "purpose": "Complete generation input pack for the coding agent implementing the local Copilot-powered argument critic project.",
+  "read_order": [
+    "00_START_HERE.md",
+    "01_PRODUCT_VISION_AND_GUARDRAILS.md",
+    "02_PROJECT_PLAN_V1.md",
+    "03_AGENTS.md",
+    "04_SKILLS.md",
+    "05_HANDOFF_PROTOCOL.md",
+    "06_CAPABILITIES_AND_DECISION_MATRIX.md",
+    "07_DATA_MODEL.md",
+    "08_IMPLEMENTATION_FILE_TREE.md",
+    "09_PER_FILE_BUILD_MANIFEST.md",
+    "10_ACCEPTANCE_TESTS.md",
+    "11_MCP_AND_LOCAL_TOOLS.md",
+    "12_TODO.md",
+    "13_GENERATION_PROMPT.md",
+    "14_FILE_INDEX.md",
+    "15_PASTE_THIS_TO_AGENT.md",
+    "generation_manifest.json"
+  ],
+  "non_negotiables": [
+    "No stubs",
+    "No omission of required files in implementation tree",
+    "Advisor-style behavior, not generic helper behavior",
+    "Active Questions queue required",
+    "Database speak mode required",
+    "Procedural reports required",
+    "Optional GPT-Researcher integration only when enabled",
+    "Anti-drift handoff packets required",
+    "One-command startup required",
+    "Clean shutdown of all owned child processes required",
+    "Crash-recovery cleanup required"
+  ],
+  "implementation_files": [
+    {
+      "path": "README.md",
+      "responsibility": "Top-level project readme with setup, run, test, and architecture overview.",
+      "depends_on": [],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "package.json",
+      "responsibility": "Root workspace configuration and scripts.",
+      "depends_on": [],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "responsibility": "Workspace definition for app packages.",
+      "depends_on": [
+        "package.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "tsconfig.base.json",
+      "responsibility": "Shared TypeScript compiler settings.",
+      "depends_on": [
+        "package.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": ".gitignore",
+      "responsibility": "Project ignore rules.",
+      "depends_on": [],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/package.json",
+      "responsibility": "Chrome extension package and scripts.",
+      "depends_on": [
+        "package.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/vite.config.ts",
+      "responsibility": "Extension build config.",
+      "depends_on": [
+        "apps/extension/package.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/public/manifest.json",
+      "responsibility": "Chrome extension MV3 manifest.",
+      "depends_on": [
+        "apps/extension/package.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/background/serviceWorker.ts",
+      "responsibility": "Background worker for message routing, capture requests, and service connectivity.",
+      "depends_on": [
+        "apps/extension/public/manifest.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/content/cropOverlay.ts",
+      "responsibility": "Injected crop overlay UI for screenshot region selection.",
+      "depends_on": [
+        "apps/extension/public/manifest.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/index.html",
+      "responsibility": "Side panel HTML entry.",
+      "depends_on": [
+        "apps/extension/package.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/main.tsx",
+      "responsibility": "Side panel app bootstrap.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/index.html"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/App.tsx",
+      "responsibility": "Root side panel layout and mode shell.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/main.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/components/ChatView.tsx",
+      "responsibility": "Chat conversation view.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/components/ActiveQuestionsPanel.tsx",
+      "responsibility": "Last-5 active questions queue UI.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/components/QuestionHistoryPanel.tsx",
+      "responsibility": "Full question history with filters.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/components/DatabasePanel.tsx",
+      "responsibility": "Database speak mode UI.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/components/ReportsPanel.tsx",
+      "responsibility": "Generated report browsing and display.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/components/CaptureControls.tsx",
+      "responsibility": "Capture and crop controls.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/components/SessionHeader.tsx",
+      "responsibility": "Session summary and controls.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/components/SettingsPanel.tsx",
+      "responsibility": "Local settings UI.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/state/store.ts",
+      "responsibility": "Front-end state store.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/api/client.ts",
+      "responsibility": "HTTP client for local companion service.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/types.ts",
+      "responsibility": "UI-side shared types.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/extension/src/sidepanel/styles.css",
+      "responsibility": "Side panel styling.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/App.tsx"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/package.json",
+      "responsibility": "Local companion service package.",
+      "depends_on": [
+        "package.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/tsconfig.json",
+      "responsibility": "Server TS config.",
+      "depends_on": [
+        "tsconfig.base.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/index.ts",
+      "responsibility": "Server entrypoint and lifecycle wiring.",
+      "depends_on": [
+        "apps/server/package.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/config/env.ts",
+      "responsibility": "Environment and runtime config parsing.",
+      "depends_on": [
+        "apps/server/src/index.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/config/constants.ts",
+      "responsibility": "Shared constants and limits.",
+      "depends_on": [
+        "apps/server/src/index.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/logger.ts",
+      "responsibility": "Structured logger.",
+      "depends_on": [
+        "apps/server/src/index.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/app.ts",
+      "responsibility": "Fastify app assembly.",
+      "depends_on": [
+        "apps/server/src/index.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/routes/health.ts",
+      "responsibility": "Health route.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/routes/chat.ts",
+      "responsibility": "Chat route for normal and critic turns.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/routes/database.ts",
+      "responsibility": "Database speak mode routes.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/routes/questions.ts",
+      "responsibility": "Question queue and history routes.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/routes/sessions.ts",
+      "responsibility": "Session CRUD and resume routes.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/routes/reports.ts",
+      "responsibility": "Report generation and retrieval routes.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/routes/capture.ts",
+      "responsibility": "Capture/attachment routes.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/routes/research.ts",
+      "responsibility": "Optional GPT-Researcher import routes.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/copilot/CopilotClient.ts",
+      "responsibility": "Copilot SDK integration wrapper.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/copilot/SessionRegistry.ts",
+      "responsibility": "Session registry and queueing control.",
+      "depends_on": [
+        "apps/server/src/services/copilot/CopilotClient.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/routing/TurnRouter.ts",
+      "responsibility": "Request route classifier.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/routing/DecisionMatrix.ts",
+      "responsibility": "Procedural-vs-AI decision rules.",
+      "depends_on": [
+        "apps/server/src/services/routing/TurnRouter.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/agents/Orchestrator.ts",
+      "responsibility": "Internal stage coordinator.",
+      "depends_on": [
+        "apps/server/src/services/routing/TurnRouter.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/agents/ContextRetrieverAgent.ts",
+      "responsibility": "Minimal relevant context fetcher.",
+      "depends_on": [
+        "apps/server/src/services/agents/Orchestrator.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/agents/ArgumentStructurerAgent.ts",
+      "responsibility": "Argument extraction agent.",
+      "depends_on": [
+        "apps/server/src/services/agents/Orchestrator.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/agents/CriticAgent.ts",
+      "responsibility": "Criticism and pressure-testing agent.",
+      "depends_on": [
+        "apps/server/src/services/agents/Orchestrator.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/agents/QuestioningAgent.ts",
+      "responsibility": "Question generation and queue logic.",
+      "depends_on": [
+        "apps/server/src/services/agents/Orchestrator.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/agents/DatabaseAgent.ts",
+      "responsibility": "Deterministic DB query answerer.",
+      "depends_on": [
+        "apps/server/src/services/agents/Orchestrator.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/agents/ResearchAgent.ts",
+      "responsibility": "Optional research importer/orchestrator.",
+      "depends_on": [
+        "apps/server/src/services/agents/Orchestrator.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/agents/ReportBuilderAgent.ts",
+      "responsibility": "Final response and report assembler.",
+      "depends_on": [
+        "apps/server/src/services/agents/Orchestrator.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/handoff/HandoffPacket.ts",
+      "responsibility": "Typed anti-drift handoff packet model.",
+      "depends_on": [
+        "apps/server/src/services/agents/Orchestrator.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/handoff/HandoffValidator.ts",
+      "responsibility": "Validation of required handoff fields.",
+      "depends_on": [
+        "apps/server/src/services/handoff/HandoffPacket.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/Database.ts",
+      "responsibility": "SQLite connection and bootstrap.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/migrations/001_initial_schema.sql",
+      "responsibility": "Initial schema migration.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/migrations/002_question_queue_indexes.sql",
+      "responsibility": "Question queue indexes and constraints.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/repositories/SessionsRepository.ts",
+      "responsibility": "Session repository.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/repositories/MessagesRepository.ts",
+      "responsibility": "Messages repository.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/repositories/QuestionsRepository.ts",
+      "responsibility": "Questions repository.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/repositories/ClaimsRepository.ts",
+      "responsibility": "Claims repository.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/repositories/ContradictionsRepository.ts",
+      "responsibility": "Contradictions repository.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/repositories/ReportsRepository.ts",
+      "responsibility": "Reports repository.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/repositories/AttachmentsRepository.ts",
+      "responsibility": "Attachments repository.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/repositories/ResearchRepository.ts",
+      "responsibility": "Research repository.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/repositories/SettingsRepository.ts",
+      "responsibility": "Settings repository.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/db/repositories/AuditLogRepository.ts",
+      "responsibility": "Audit log repository.",
+      "depends_on": [
+        "apps/server/src/services/db/Database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/parser/ArgumentParser.ts",
+      "responsibility": "Text-to-structure parser orchestration.",
+      "depends_on": [
+        "apps/server/src/services/agents/ArgumentStructurerAgent.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/parser/ClaimLinker.ts",
+      "responsibility": "Claim relationship linker.",
+      "depends_on": [
+        "apps/server/src/services/parser/ArgumentParser.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/parser/DefinitionTracker.ts",
+      "responsibility": "Definition drift helper.",
+      "depends_on": [
+        "apps/server/src/services/parser/ArgumentParser.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/questions/QuestionQueueService.ts",
+      "responsibility": "Active question queue management.",
+      "depends_on": [
+        "apps/server/src/services/agents/QuestioningAgent.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/questions/QuestionResolutionService.ts",
+      "responsibility": "Question answer/archive/resolve flow.",
+      "depends_on": [
+        "apps/server/src/services/questions/QuestionQueueService.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/reports/ProceduralReportBuilder.ts",
+      "responsibility": "Deterministic report renderer.",
+      "depends_on": [
+        "apps/server/src/services/agents/ReportBuilderAgent.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/reports/ReportTemplates.ts",
+      "responsibility": "Report templates and sections.",
+      "depends_on": [
+        "apps/server/src/services/reports/ProceduralReportBuilder.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/research/GptResearcherImporter.ts",
+      "responsibility": "GPT-Researcher importer and normalizer.",
+      "depends_on": [
+        "apps/server/src/services/agents/ResearchAgent.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/research/ResearchNormalizer.ts",
+      "responsibility": "Normalization and deduplication logic.",
+      "depends_on": [
+        "apps/server/src/services/research/GptResearcherImporter.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/attachments/AttachmentStore.ts",
+      "responsibility": "Attachment persistence service.",
+      "depends_on": [
+        "apps/server/src/routes/capture.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/attachments/ImageAnalysisService.ts",
+      "responsibility": "Image analysis pipeline.",
+      "depends_on": [
+        "apps/server/src/services/attachments/AttachmentStore.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/session/SessionSummaryService.ts",
+      "responsibility": "Session summary creation.",
+      "depends_on": [
+        "apps/server/src/services/agents/Orchestrator.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/persistence/PersistenceCoordinator.ts",
+      "responsibility": "Atomic write coordinator for turn deltas.",
+      "depends_on": [
+        "apps/server/src/services/agents/Orchestrator.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/types/domain.ts",
+      "responsibility": "Shared domain models for the server.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/types/api.ts",
+      "responsibility": "Request/response types.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/utils/time.ts",
+      "responsibility": "Time helpers.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/utils/fs.ts",
+      "responsibility": "Filesystem helpers.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/test/acceptance/normal-chat.test.ts",
+      "responsibility": "Acceptance test for normal chat mode.",
+      "depends_on": [
+        "apps/server/src/routes/chat.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/test/acceptance/critic-mode.test.ts",
+      "responsibility": "Acceptance test for critic mode.",
+      "depends_on": [
+        "apps/server/src/routes/chat.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/test/acceptance/database-mode.test.ts",
+      "responsibility": "Acceptance test for database mode.",
+      "depends_on": [
+        "apps/server/src/routes/database.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/test/acceptance/question-queue.test.ts",
+      "responsibility": "Acceptance test for question queue behavior.",
+      "depends_on": [
+        "apps/server/src/routes/questions.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/test/acceptance/report-generation.test.ts",
+      "responsibility": "Acceptance test for report generation.",
+      "depends_on": [
+        "apps/server/src/routes/reports.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/test/acceptance/research-isolation.test.ts",
+      "responsibility": "Acceptance test for research isolation.",
+      "depends_on": [
+        "apps/server/src/routes/research.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/test/acceptance/capture-flow.test.ts",
+      "responsibility": "Acceptance test for screenshot/crop flow.",
+      "depends_on": [
+        "apps/server/src/routes/capture.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "docs/architecture.md",
+      "responsibility": "Human-readable architecture notes for maintainers.",
+      "depends_on": [
+        "README.md"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "docs/api.md",
+      "responsibility": "Local companion HTTP API surface.",
+      "depends_on": [
+        "apps/server/src/routes/chat.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "docs/state-model.md",
+      "responsibility": "UI state, queue state, and session state model.",
+      "depends_on": [
+        "apps/extension/src/sidepanel/state/store.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "scripts/install.ts",
+      "responsibility": "Verify prerequisites, bootstrap dependencies, create local data directories, and prepare first run.",
+      "depends_on": [
+        "package.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "scripts/start.ts",
+      "responsibility": "Single user-facing startup entry that launches owned runtime components and handles clean shutdown.",
+      "depends_on": [
+        "package.json",
+        "apps/server/src/index.ts",
+        "apps/extension/public/manifest.json"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "scripts/cleanup.ts",
+      "responsibility": "Cleanup utility for stale app-owned processes and managed profiles.",
+      "depends_on": [
+        "scripts/start.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/routes/runtime.ts",
+      "responsibility": "Runtime control routes for readiness and local shutdown.",
+      "depends_on": [
+        "apps/server/src/app.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/runtime/ProcessSupervisor.ts",
+      "responsibility": "Track and terminate owned child process trees safely.",
+      "depends_on": [
+        "apps/server/src/index.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/runtime/ShutdownCoordinator.ts",
+      "responsibility": "Coordinate graceful shutdown across runtime components and supervised children.",
+      "depends_on": [
+        "apps/server/src/services/runtime/ProcessSupervisor.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/runtime/ChromeLauncher.ts",
+      "responsibility": "Launch a managed Chrome instance/profile for unpacked extension use without touching unrelated sessions.",
+      "depends_on": [
+        "apps/server/src/services/runtime/ProcessSupervisor.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/services/runtime/StaleProcessRecovery.ts",
+      "responsibility": "Detect and clean stale app-owned processes on next start after a crash.",
+      "depends_on": [
+        "apps/server/src/services/runtime/ProcessSupervisor.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/src/utils/process.ts",
+      "responsibility": "Cross-platform process helpers for tree termination and ownership checks.",
+      "depends_on": [
+        "apps/server/src/services/runtime/ProcessSupervisor.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "apps/server/test/acceptance/runtime-lifecycle.test.ts",
+      "responsibility": "Verify startup, shutdown, orphan prevention, and stale-process recovery.",
+      "depends_on": [
+        "scripts/start.ts",
+        "apps/server/src/services/runtime/ShutdownCoordinator.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    },
+    {
+      "path": "docs/runtime-lifecycle.md",
+      "responsibility": "Document startup, process ownership, shutdown guarantees, and recovery behavior.",
+      "depends_on": [
+        "scripts/start.ts"
+      ],
+      "fully_implemented": true,
+      "stubs_allowed": false
+    }
+  ]
+}

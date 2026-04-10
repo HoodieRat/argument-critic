@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "Argument Critic",
+  "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4+/x+oVwoSJeX2wIhQBFplKRNBASSe3m7+NkyLI6ij/SSAo0izy1Im5XNaRr798j3lyqOqxF+APTcLAFJItMTEjdSqgDsPX9k0jU9y4p3ltLamV7He+ZmChqPqFluBjb4v1LTvsBxv7/7e86s/ISKaTy15cmJiDITl+DvpJS4iSp37fskRUlfKj1QYyXj7nFQX7ayzYOB0npE7vXeORPZSmaQ+nQ9xh/rKcKlfBXYI0NX2FR375yn7LeYEMq+k3PBFgqAcmWyubciuXok5C/d8X0mZjshtcxC8ZJxONER8rGkRELl/Asvg/QCrjiZU1q0H0FeuaHQzXEqwjEEMWaQwIDAQAB",
+  "description": "Local Copilot-powered argument companion with advisor-style critique and persistent question tracking.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Argument Critic"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "welcome.html",
+        "welcome.js",
+        "sidepanel.html",
+        "assets/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "cropOverlay.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

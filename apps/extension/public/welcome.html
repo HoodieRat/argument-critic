@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open Argument Critic</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Aptos", "Trebuchet MS", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(158, 61, 34, 0.2), transparent 40%),
+          radial-gradient(circle at bottom right, rgba(40, 67, 79, 0.16), transparent 35%),
+          linear-gradient(180deg, #f8f2e9 0%, #f2e7d7 100%);
+        color: #3f3227;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+      }
+
+      main {
+        width: min(46rem, 100%);
+        padding: 1.75rem;
+        border-radius: 22px;
+        background: rgba(255, 251, 245, 0.9);
+        border: 1px solid rgba(63, 50, 39, 0.08);
+        box-shadow: 0 18px 42px rgba(63, 50, 39, 0.14);
+      }
+
+      p {
+        margin: 0;
+        white-space: pre-wrap;
+      }
+
+      .eyebrow {
+        font-size: 0.72rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #7f6c5a;
+      }
+
+      h1 {
+        margin: 0.4rem 0 0.7rem;
+        font-size: 2.1rem;
+        font-family: "Constantia", "Book Antiqua", serif;
+      }
+
+      .copy {
+        color: #5b4a3a;
+        margin-bottom: 1rem;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin: 1.1rem 0;
+      }
+
+      button,
+      a {
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        padding: 0.8rem 1.1rem;
+        font: inherit;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .primary {
+        background: linear-gradient(135deg, #9e3d22 0%, #d8815d 100%);
+        color: #fff8f3;
+      }
+
+      .secondary {
+        background: rgba(216, 195, 165, 0.38);
+        color: #3f3227;
+      }
+
+      .note,
+      #status {
+        color: #7f6c5a;
+      }
+
+      ol {
+        margin: 0.9rem 0 0;
+        padding-left: 1.2rem;
+        color: #5b4a3a;
+      }
+
+      li + li {
+        margin-top: 0.35rem;
+      }
+
+      code {
+        padding: 0.12rem 0.38rem;
+        border-radius: 999px;
+        background: rgba(158, 61, 34, 0.12);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Argument Critic</p>
+      <h1>Open the app with one click.</h1>
+      <p class="copy">You do not need to find the extension icon first. Use the button below and Argument Critic will open in Chrome’s side panel for this window.</p>
+
+      <div class="actions">
+        <button id="open-side-panel" class="primary" type="button">Open Argument Critic</button>
+        <a id="full-page-link" class="secondary" href="sidepanel.html">Use full-page mode instead</a>
+      </div>
+
+      <p id="status" aria-live="polite">The side panel opens on the right edge of the browser.</p>
+      <p class="note">If you choose full-page mode, chat still works there. Screen capture works best from the side panel.</p>
+
+      <ol>
+        <li>Click <code>Open Argument Critic</code>.</li>
+        <li>If this is your first run, open Settings and choose Sign in with GitHub.</li>
+        <li>Pin the extension later only if you want quicker access next time.</li>
+      </ol>
+
+      <script type="module" src="welcome.js"></script>
+    </main>
+  </body>
+</html>

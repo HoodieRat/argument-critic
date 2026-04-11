@@ -19,7 +19,7 @@ Website: https://hoodierat.github.io/argument-critic/
 - Questions: keep track of unresolved questions so they do not disappear
 - Records: search past sessions, reports, captures, and saved facts
 - Reports: turn messy work into a structured summary
-- Capture: take a screenshot or crop part of the screen and analyze it
+- Capture: take a screenshot or crop part of the screen, extract visible text by default, or switch back to full image inspection per chat
 - Research: review imported outside research in a separate lane
 
 ## Why People Like It
@@ -33,27 +33,34 @@ Website: https://hoodierat.github.io/argument-critic/
 
 This is the easiest path for normal users.
 
-1. Download this project from GitHub.
-2. Extract the ZIP to a normal folder on your PC.
-3. Double-click `Install Argument Critic.cmd`.
-4. Wait for the installer to finish. The first install can take a few minutes.
-5. Double-click `Start Argument Critic.cmd`.
-6. Leave that launcher window open while the app is running.
-7. In the app, open Settings and choose `Sign in with GitHub`.
+1. Open the latest release on GitHub.
+2. Download `Argument-Critic-Setup.exe`.
+3. Run the installer.
+4. Launch Argument Critic from the Start Menu or desktop shortcut.
+5. In the app, open Settings and choose `Sign in with GitHub`.
 
-Need more hand-holding? See [docs/windows-guide.md](docs/windows-guide.md).
+Need more hand-holding? See [INSTALL.md](INSTALL.md) or [docs/windows-guide.md](docs/windows-guide.md).
 
 ## What The Installer Does
 
-The install script is meant to reduce setup work for non-coders. It will:
+The Windows installer is meant to give non-coders a normal app install. It will:
 
-- install or upgrade Node.js LTS with `winget` if needed
-- enable Corepack for the local package workflow
-- install the project dependencies
-- prepare local data folders
-- prebuild the desktop app for faster starts later
+- install the desktop app into Windows
+- bundle the local companion service so Node.js and pnpm are not required
+- bundle the GitHub sign-in helper used by the default Sign in with GitHub flow
+- create Start Menu shortcuts and optionally a desktop shortcut
+- store runtime data under your Windows user profile
 
-If `winget` is missing, install Node.js from https://nodejs.org/ and run the installer again.
+## Source Checkout Quick Start
+
+This path is for contributors or anyone running from source instead of the installer.
+
+1. Download this project from GitHub or clone the repository.
+2. Open the project folder.
+3. Double-click `Install Argument Critic.cmd`.
+4. Wait for the setup to finish.
+5. Double-click `Start Argument Critic.cmd`.
+6. Leave that launcher window open while the source build is running.
 
 ## First Run
 
@@ -62,10 +69,10 @@ When the app opens for the first time:
 1. Open Settings.
 2. Click `Sign in with GitHub`.
 3. A browser page opens.
-4. Approve the one-time code.
+4. Complete GitHub approval.
 5. Come back to the app and start using it.
 
-If this build was not configured for direct browser sign-in, the app falls back to GitHub CLI or manual token entry. Regular end users should not need to edit config files.
+On Windows installs, the app now bundles the GitHub sign-in helper used by the default sign-in path so regular users do not have to install or manage it separately. Manual token entry is still available as an advanced fallback, but ordinary GitHub tokens usually unlock GitHub Models only, not the full Copilot catalog.
 
 ## How To Use It
 
@@ -123,7 +130,8 @@ You can capture the whole window or crop part of the screen.
 This is useful when:
 
 - you want to inspect a chart, claim, screenshot, or document excerpt
-- you want the app to analyze what is visible on screen
+- you want the app to extract the visible text from a screenshot before replying
+- you want to switch that chat back to direct image inspection for charts, layouts, or other visual details
 
 ## What Gets Saved
 
@@ -137,6 +145,8 @@ Argument Critic stores your work locally, including:
 - optional imported research
 
 Your local data lives under the project data folder and is backed by SQLite.
+
+Installed builds store that data under your Windows user profile. Source checkouts use the local `data` folder unless you override it.
 
 ## Privacy And Sign-In
 
@@ -154,9 +164,9 @@ If something goes wrong, start here:
 
 Common quick fixes:
 
-- if install fails, run `Install Argument Critic.cmd` again after fixing the reported issue
-- if the app does not open, make sure you used the install step first
-- if the drawer closes, restart with `Start Argument Critic.cmd`
+- if install fails, run `Argument-Critic-Setup.exe` again after fixing the reported issue
+- if the app does not open, make sure you used the installer or completed the source install step first
+- if the drawer closes, reopen Argument Critic from the Start Menu or restart with `Start Argument Critic.cmd` for a source checkout
 - if sign-in is not available, check the Settings screen or the troubleshooting guide
 
 ## Technology Used
@@ -179,6 +189,7 @@ Argument Critic currently uses:
 - `corepack pnpm build`
 - `corepack pnpm --filter @argument-critic/server test`
 - `corepack pnpm run build:legacy-extension`
+- `corepack pnpm release:windows`
 - `corepack pnpm cleanup`
 
 ### Project structure
@@ -189,12 +200,31 @@ Argument Critic currently uses:
 - `scripts`: install, start, and cleanup entrypoints
 - `docs`: supporting documentation
 
+### Automated Windows releases
+
+The repository already includes a GitHub Actions release workflow.
+
+- `workflow_dispatch` builds a preview installer and uploads it as an Actions artifact.
+- published GitHub releases run the same packaging pipeline and attach the installer automatically.
+
+By default, this project ships unsigned Windows installers. Users will see the normal `Unknown Publisher` warning and must use `More info` -> `Run anyway` when installing from the official GitHub release page.
+
+If you ever want optional signing later, add these repository secrets:
+
+- `WINDOWS_CERTIFICATE_PFX_BASE64`: base64-encoded exportable `.pfx` certificate
+- `WINDOWS_CERTIFICATE_PASSWORD`: password for that `.pfx`
+
+The packaging script converts those secrets into the `CSC_LINK` and `CSC_KEY_PASSWORD` values that `electron-builder` expects. If you already manage signing through `CSC_LINK` and `CSC_KEY_PASSWORD`, the same packaging path will use those directly instead.
+
+There is no free publicly trusted Windows code-signing certificate built into this repo flow. For a no-cost release path, keep shipping unsigned installers. See [docs/releasing.md](docs/releasing.md) for the exact release flow.
+
 ### Maintainer note for direct GitHub sign-in
 
-If you want the browser-first GitHub sign-in flow enabled in your build:
+If you want the browser-first OAuth device flow enabled instead of the default CLI-backed sign-in:
 
 1. copy `.env.local.example` to `.env.local`
-2. set `ARGUMENT_CRITIC_GITHUB_OAUTH_CLIENT_ID`
-3. restart the app
+2. set `ARGUMENT_CRITIC_GITHUB_LOGIN_AUTH_METHOD=oauth-device`
+3. set `ARGUMENT_CRITIC_GITHUB_OAUTH_CLIENT_ID`
+4. restart the app
 
 End users should not need to do that themselves.

@@ -239,6 +239,34 @@ function describeGitHubModelsFallback(access: CopilotAccessTokenResolution): str
   return "The app could not refresh Copilot access for this token right now. GitHub Models are active instead.";
 }
 
+function looksLikeLimitedOAuthCatalog(records: CopilotModelApiRecord[], mapped: CopilotModelOption[], tokenKind: ModelAccessTokenKind): boolean {
+  if (tokenKind !== "oauth_token") {
+    return false;
+  }
+
+  if (records.length < 2 || mapped.length > 1) {
+    return false;
+  }
+
+  const pickerEnabledCount = records.filter((record) => (record.model_picker_enabled ?? true) !== false).length;
+  if (pickerEnabledCount > 1) {
+    return false;
+  }
+
+  const hasRichEndpointMetadata = records.some((record) => Array.isArray(record.supported_endpoints) && record.supported_endpoints.length > 0);
+  const hasThinkingMetadata = records.some((record) => Boolean(record.capabilities?.supports?.thinking));
+  const hasModernFamilies = records.some((record) => {
+    const family = deriveFamily(record);
+    return family.startsWith("claude") || family.startsWith("gpt-5") || family.startsWith("o1") || family.startsWith("o3") || family.startsWith("o4");
+  });
+  const hasUnexpectedVendor = records.some((record) => {
+    const vendor = record.vendor?.trim();
+    return Boolean(vendor) && vendor !== "Azure OpenAI" && vendor !== "OpenAI";
+  });
+
+  return !hasRichEndpointMetadata && !hasThinkingMetadata && !hasModernFamilies && !hasUnexpectedVendor;
+}
+
 function mapGitHubCatalogRecord(record: GitHubModelsCatalogRecord): CopilotModelOption | null {
   if (typeof record.id !== "string" || !record.id.trim()) {
     return null;
@@ -314,8 +342,8 @@ export class CopilotModelCatalog {
     return availableModels.find((model) => model.isDefault)?.id ?? availableModels[0]?.id ?? normalized;
   }
 
-  public async getSelectedModel(selectedModel: string): Promise<ResolvedModelCatalog> {
-    const catalog = await this.getCatalog();
+  public async getSelectedModel(selectedModel: string, forceRefresh = false): Promise<ResolvedModelCatalog> {
+    const catalog = await this.getCatalog(forceRefresh);
     const selectedModelId = this.resolveSelectedModelId(selectedModel, catalog.availableModels);
 
     return {
@@ -410,20 +438,25 @@ export class CopilotModelCatalog {
       }
 
       try {
-        return await this.fetchCopilotModels(token, tokenKind, fallbackWarning);
+        return await this.fetchCopilotModels(token, tokenKind, fallbackWarning, token);
       } catch (error) {
         this.logger.warn("Direct Copilot catalog lookup failed for the saved token.", {
           error: error instanceof Error ? error.message : String(error)
         });
       }
 
-      return await this.fetchGitHubModelsCatalog(token, fallbackWarning);
+      return await this.fetchGitHubModelsCatalog(token, tokenKind, fallbackWarning);
     }
 
     return await this.fetchCopilotModels(token, tokenKind);
   }
 
-  private async fetchCopilotModels(token: string, tokenKind: ModelAccessTokenKind, fallbackWarning: string | null = null): Promise<{ availableModels: CopilotModelOption[]; access: ModelAccessStatus }> {
+  private async fetchCopilotModels(
+    token: string,
+    tokenKind: ModelAccessTokenKind,
+    fallbackWarning: string | null = null,
+    fallbackGitHubModelsToken: string | null = null
+  ): Promise<{ availableModels: CopilotModelOption[]; access: ModelAccessStatus }> {
     const response = await fetch(COPILOT_MODELS_ENDPOINT, {
       headers: {
         Authorization: `Bearer ${token}`
@@ -434,7 +467,10 @@ export class CopilotModelCatalog {
     if (!response.ok) {
       const responseText = await response.text();
       if (isPersonalAccessTokenUnsupported(responseText)) {
-        return await this.fetchGitHubModelsCatalog(token, fallbackWarning);
+        if (fallbackGitHubModelsToken) {
+          return await this.fetchGitHubModelsCatalog(fallbackGitHubModelsToken, tokenKind, fallbackWarning);
+        }
+        throw new Error(`Copilot model list request failed with ${response.status}: ${responseText || "Unknown error"}`);
       }
       throw new Error(`Copilot model list request failed with ${response.status}: ${responseText || "Unknown error"}`);
     }
@@ -479,6 +515,10 @@ export class CopilotModelCatalog {
         })
     );
 
+    if (fallbackGitHubModelsToken && looksLikeLimitedOAuthCatalog(records, mapped, tokenKind)) {
+      return await this.fetchGitHubModelsCatalog(fallbackGitHubModelsToken, tokenKind, fallbackWarning);
+    }
+
     return {
       availableModels: mapped,
       access: {
@@ -489,7 +529,11 @@ export class CopilotModelCatalog {
     };
   }
 
-  private async fetchGitHubModelsCatalog(token: string, warning: string | null = null): Promise<{ availableModels: CopilotModelOption[]; access: ModelAccessStatus }> {
+  private async fetchGitHubModelsCatalog(
+    token: string,
+    tokenKind: ModelAccessTokenKind,
+    warning: string | null = null
+  ): Promise<{ availableModels: CopilotModelOption[]; access: ModelAccessStatus }> {
     const response = await fetch(GITHUB_MODELS_CATALOG_ENDPOINT, {
       headers: {
         Accept: "application/vnd.github+json",
@@ -515,7 +559,7 @@ export class CopilotModelCatalog {
       availableModels,
       access: {
         backend: "github-models",
-        tokenKind: "personal_access_token",
+        tokenKind,
         warning: warning ?? "Using GitHub Models with the saved GitHub token. Copilot-only models are unavailable for this token or account."
       }
     };

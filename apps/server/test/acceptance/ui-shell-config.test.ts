@@ -49,8 +49,27 @@ test("loads maintainer overrides from .env.local", async () => {
     );
 
     const config = getEnvironmentConfig(tempRoot);
+    expect(config.githubLoginAuthMethod).toBe("github-cli");
     expect(config.githubOAuthClientId).toBe("client-123");
     expect(config.uiShell).toBe("none");
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("lets maintainers explicitly opt back into OAuth device flow", async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "argument-critic-env-"));
+
+  try {
+    await writeFile(
+      join(tempRoot, ".env.local"),
+      "ARGUMENT_CRITIC_GITHUB_LOGIN_AUTH_METHOD=oauth-device\nARGUMENT_CRITIC_GITHUB_OAUTH_CLIENT_ID=client-123\n",
+      "utf8"
+    );
+
+    const config = getEnvironmentConfig(tempRoot);
+    expect(config.githubLoginAuthMethod).toBe("oauth-device");
+    expect(config.githubOAuthClientId).toBe("client-123");
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

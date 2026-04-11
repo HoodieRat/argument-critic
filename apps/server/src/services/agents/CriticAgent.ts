@@ -1,8 +1,30 @@
-import { VAGUE_TERMS } from "../../config/constants.js";
+import {
+  DEFAULT_CRITICALITY_MULTIPLIER,
+  MAX_CRITICALITY_MULTIPLIER,
+  MIN_CRITICALITY_MULTIPLIER,
+  VAGUE_TERMS
+} from "../../config/constants.js";
 import type { ClaimRecord, CriticFinding } from "../../types/domain.js";
 import { DefinitionTracker } from "../parser/DefinitionTracker.js";
 import type { RetrievedContext } from "./ContextRetrieverAgent.js";
 import type { StructuredArgument } from "./ArgumentStructurerAgent.js";
+
+interface CritiqueOptions {
+  readonly criticalityMultiplier?: number;
+}
+
+const ABSOLUTIST_LANGUAGE_PATTERN = /\b(always|never|everyone|nobody|all|none|impossible|inevitable)\b/i;
+const CAUSAL_LANGUAGE_PATTERN = /\b(causes?|caused|leads? to|results? in|drives?)\b/i;
+const NORMATIVE_LANGUAGE_PATTERN = /\b(should|must|need to|ought to|have to)\b/i;
+const CONFIDENCE_LANGUAGE_PATTERN = /\b(obviously|clearly|definitely|certainly|undeniably|proves?)\b/i;
+
+function clampCriticalityMultiplier(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_CRITICALITY_MULTIPLIER;
+  }
+
+  return Math.min(MAX_CRITICALITY_MULTIPLIER, Math.max(MIN_CRITICALITY_MULTIPLIER, value));
+}
 
 export interface CriticResult {
   readonly findings: CriticFinding[];
@@ -32,7 +54,8 @@ function stripNegation(text: string): string {
 export class CriticAgent {
   public constructor(private readonly definitionTracker: DefinitionTracker) {}
 
-  public critique(rawText: string, structured: StructuredArgument, context: RetrievedContext): CriticResult {
+  public critique(rawText: string, structured: StructuredArgument, context: RetrievedContext, options: CritiqueOptions = {}): CriticResult {
+    const criticalityMultiplier = clampCriticalityMultiplier(options.criticalityMultiplier);
     const findings: CriticFinding[] = [];
     const contradictions: Array<{ claimAId: string; claimBId: string; explanation: string }> = [];
     const objections: Array<{ claimId: string; text: string; severity: string }> = [];
@@ -47,7 +70,14 @@ export class CriticAgent {
     }
 
     const vagueMatches = [...new Set(VAGUE_TERMS.filter((term) => rawText.toLowerCase().includes(term)))];
-    for (const term of vagueMatches) {
+    const vagueFindingLimit = criticalityMultiplier < 0.55
+      ? 0
+      : criticalityMultiplier < DEFAULT_CRITICALITY_MULTIPLIER
+        ? 1
+        : criticalityMultiplier < 2
+          ? Math.min(vagueMatches.length, 2)
+          : vagueMatches.length;
+    for (const term of vagueMatches.slice(0, vagueFindingLimit)) {
       findings.push({
         type: "ambiguity",
         detail: `The term \"${term}\" is doing argumentative work without a stable definition.`,
@@ -55,7 +85,7 @@ export class CriticAgent {
       });
     }
 
-    if (/\b(therefore|thus|so)\b/i.test(rawText) && structured.claims.length < 2) {
+    if (criticalityMultiplier >= 0.75 && /\b(therefore|thus|so)\b/i.test(rawText) && structured.claims.length < 2) {
       const claim = structured.claims[0];
       if (claim) {
         findings.push({
@@ -66,9 +96,41 @@ export class CriticAgent {
         objections.push({
           claimId: claim.id,
           text: "The conclusion arrives before the supporting steps are made explicit.",
-          severity: "medium"
+          severity: criticalityMultiplier >= 2 ? "high" : "medium"
         });
       }
+    }
+
+    if (criticalityMultiplier >= 1.5 && ABSOLUTIST_LANGUAGE_PATTERN.test(rawText)) {
+      findings.push({
+        type: "unsupported_premise",
+        detail: "The argument uses absolute language without showing why obvious exception cases are impossible.",
+        evidence: [rawText]
+      });
+    }
+
+    if (criticalityMultiplier >= 2 && CAUSAL_LANGUAGE_PATTERN.test(rawText)) {
+      findings.push({
+        type: "unsupported_premise",
+        detail: "A causal claim is asserted without explaining the mechanism or ruling out alternatives.",
+        evidence: [rawText]
+      });
+    }
+
+    if (criticalityMultiplier >= 3 && NORMATIVE_LANGUAGE_PATTERN.test(rawText)) {
+      findings.push({
+        type: "unsupported_premise",
+        detail: "The recommendation uses should-or-must language without a clear decision rule or threshold.",
+        evidence: [rawText]
+      });
+    }
+
+    if (criticalityMultiplier >= 4 && CONFIDENCE_LANGUAGE_PATTERN.test(rawText)) {
+      findings.push({
+        type: "ambiguity",
+        detail: "Confidence-signaling language is standing in for proof.",
+        evidence: [rawText]
+      });
     }
 
     for (const newClaim of structured.claims) {

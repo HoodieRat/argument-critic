@@ -11,6 +11,7 @@ interface QuestionHistoryPanelProps {
   readonly onArchive: (questionId: string) => Promise<void>;
   readonly onResolve: (questionId: string) => Promise<void>;
   readonly onReopen: (questionId: string) => Promise<void>;
+  readonly onClearAll: () => Promise<void>;
 }
 
 const FILTERS: Array<{ label: string; value?: QuestionStatus }> = [
@@ -33,8 +34,17 @@ export function QuestionHistoryPanel(props: QuestionHistoryPanelProps) {
           <p className="eyebrow">Questions</p>
           <h2>Follow-up</h2>
         </div>
-        <span className="count-badge">{props.activeQuestions.length} open</span>
+        <div className="questions-panel__header-actions">
+          <span className="count-badge">{props.activeQuestions.length} open</span>
+          <button className="ghost-button" type="button" onClick={() => void props.onClearAll()} disabled={props.activeQuestions.length === 0}>
+            Clear active
+          </button>
+        </div>
       </div>
+
+      {props.activeQuestions.length >= 5 ? (
+        <p className="detail-line">Question queue is full. Answer, resolve, archive, or clear one before new follow-up questions will be generated.</p>
+      ) : null}
 
       <div className="questions-panel__section">
         {props.activeQuestions.length === 0 ? (

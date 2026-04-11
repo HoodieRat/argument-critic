@@ -1,0 +1,57 @@
+name: release-windows
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Build Windows installer
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets[format('{0}', 'WINDOWS_CERTIFICATE_PFX_BASE64')] }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets[format('{0}', 'WINDOWS_CERTIFICATE_PASSWORD')] }}
+        run: corepack pnpm package:windows
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: argument-critic-windows-installer
+          path: |
+            dist/release/Argument-Critic-Setup.exe
+            dist/release/Argument-Critic-Setup.exe.blockmap
+
+      - name: Attach installer to GitHub release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/release/Argument-Critic-Setup.exe
+            dist/release/Argument-Critic-Setup.exe.blockmap

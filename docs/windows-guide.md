@@ -14,35 +14,34 @@ You do not need to know how to code.
 
 ## The Easy Install Path
 
-1. Download the project from GitHub.
-2. Extract it to a normal folder, such as your Desktop or Documents folder.
-3. Open the folder.
-4. Double-click `Install Argument Critic.cmd`.
-5. Wait for the install to finish.
-6. Double-click `Start Argument Critic.cmd`.
-
-Keep the launcher window open while the app is running.
+1. Open the latest release page on GitHub.
+2. Download `Argument-Critic-Setup.exe`.
+3. Open the installer.
+4. Follow the Windows install prompts.
+5. Launch Argument Critic from the Start Menu or desktop shortcut.
 
 ## What To Expect During Install
 
 The installer may:
 
-- install or upgrade Node.js
-- download project dependencies
-- prepare local folders
-- build the app for the first launch
+- ask for normal Windows install permission
+- copy the desktop app and bundled local companion to your PC
+- include the GitHub sign-in helper used by the default sign-in flow
+- create Start Menu shortcuts
+- offer a desktop shortcut
+- keep your app data under your Windows user profile
 
-The first install can take a few minutes.
+You do not need Node.js, pnpm, or a ZIP extraction step for the normal install path.
 
 ## First Sign-In
 
 1. Open Settings.
 2. Click `Sign in with GitHub`.
 3. A browser window or tab opens.
-4. Approve the one-time code.
+4. Approve the GitHub sign-in step.
 5. Return to the app.
 
-If your build does not support direct browser sign-in yet, the app will tell you what fallback path is available.
+Normal users should use that sign-in button. Manual token entry is only an advanced fallback.
 
 ## Your First Session
 
@@ -69,9 +68,9 @@ Use `Reports` when you want a more structured write-up.
 
 You can stop it in any of these ways:
 
-1. press Ctrl+C in the launcher window
-2. use `Exit app` inside the app
-3. close the app and restart later with `Start Argument Critic.cmd`
+1. use `Exit app` inside the app
+2. close the app window and reopen it later from the Start Menu
+3. if you are running from source instead of the installer, stop the launcher window or restart with `Start Argument Critic.cmd`
 
 ## Need Help?
 

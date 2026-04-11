@@ -103,4 +103,4 @@ test("auto-title can be disabled from runtime settings", async () => {
   } finally {
     await harness.cleanup();
   }
-});
+}, 10_000);

@@ -11,14 +11,14 @@ function describeTitle(result: CaptureSubmitResponse): string {
 
 function describeSummary(result: CaptureSubmitResponse): string {
   if (result.analysis) {
-    return result.analysis;
+    return `${result.analysis} It is also queued in the chat box as an attachment.`;
   }
 
   if (result.capture) {
-    return `Saved a ${result.capture.cropWidth} x ${result.capture.cropHeight} crop to this session.`;
+    return `Saved a ${result.capture.cropWidth} x ${result.capture.cropHeight} crop to this session and added it to the chat box as an attachment.`;
   }
 
-  return "Saved a screenshot to this session.";
+  return "Saved a screenshot to this session and added it to the chat box as an attachment.";
 }
 
 export function CaptureStatusCard(props: CaptureStatusCardProps) {
@@ -30,12 +30,12 @@ export function CaptureStatusCard(props: CaptureStatusCardProps) {
           <h2>{describeTitle(props.result)}</h2>
         </div>
         <button className="ghost-button" type="button" onClick={props.onOpenCapture}>
-          Open Capture
+          Open Capture Tab
         </button>
       </div>
 
       <p>{describeSummary(props.result)}</p>
-      <p className="detail-line">Next step: use the Capture tab if you want to review or replace this image. It stays saved with the current session.</p>
+      <p className="detail-line">Next step: send a message from the current lane to have the assistant use this attachment, or open the Capture tab to review it separately.</p>
     </section>
   );
 }

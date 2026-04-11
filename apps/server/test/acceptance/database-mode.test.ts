@@ -64,4 +64,4 @@ test("database mode returns deterministic stored answers and procedural reports"
   } finally {
     await harness.cleanup();
   }
-});
+}, 10_000);

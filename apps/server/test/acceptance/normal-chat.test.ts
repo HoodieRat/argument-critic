@@ -24,7 +24,9 @@ test("normal chat stores messages and survives restart", async () => {
     const body = parseJson<ChatTurnResponse>(reply.body);
     expect(reply.statusCode).toBe(200);
     expect(body.messages).toHaveLength(2);
-    expect(body.session.summary).toContain("No unresolved questions");
+    expect(body.activeQuestions.length).toBeGreaterThan(0);
+    expect(body.targetedQuestions.length).toBeGreaterThan(0);
+    expect(body.session.summary).toContain("unresolved question(s)");
 
     await first.close();
 

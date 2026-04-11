@@ -16,6 +16,7 @@ export function App() {
   const store = useAppStore();
   const activeQuestionCount = store.activeQuestions.length;
   const settingsOpen = store.activePanel === "settings";
+  const tokenConfigured = Boolean(store.settings?.githubModelsToken.configured);
   const lastWorkspacePanelRef = useRef<"history" | "database" | "reports" | "capture">("history");
 
   useEffect(() => {
@@ -58,10 +59,8 @@ export function App() {
   return (
     <div className="app-shell">
       <SessionHeader
-        runtimeReady={Boolean(store.runtimeStatus?.ready)}
         busy={store.isBusy}
         mode={store.mode}
-        tokenConfigured={Boolean(store.settings?.githubModelsToken.configured)}
         settingsViewOpen={settingsOpen}
         onSetMode={handleModeChange}
         onOpenSettings={handleOpenSettings}
@@ -70,6 +69,15 @@ export function App() {
       />
 
       {store.error ? <div className="error-banner">{store.error}</div> : null}
+
+      {!settingsOpen && !tokenConfigured ? (
+        <div className="compact-auth-notice" role="status">
+          <span>Not signed in.</span>
+          <button className="ghost-button compact-auth-notice__action" type="button" onClick={handleOpenSettings}>
+            Sign in
+          </button>
+        </div>
+      ) : null}
 
       {settingsOpen ? (
         <div className="layout-grid layout-grid--settings">
@@ -95,6 +103,7 @@ export function App() {
             {store.captureResult ? <CaptureStatusCard result={store.captureResult} onOpenCapture={() => store.setActivePanel("capture")} /> : null}
 
             <ChatView
+              apiBaseUrl={store.apiBaseUrl}
               messages={store.messages}
               sessions={store.sessions}
               currentSession={store.currentSession}
@@ -106,13 +115,18 @@ export function App() {
               githubModelThinkingEnabled={store.settings?.githubModelThinkingEnabled ?? false}
               githubModelReasoningEffort={store.settings?.githubModelReasoningEffort ?? null}
               githubModelThinkingBudget={store.settings?.githubModelThinkingBudget ?? null}
-              tokenConfigured={Boolean(store.settings?.githubModelsToken.configured)}
+              tokenConfigured={tokenConfigured}
+              pendingAttachments={store.pendingAttachments}
               onSend={store.sendMessage}
+              onUploadFiles={store.uploadAttachments}
+              onRemovePendingAttachment={store.removePendingAttachment}
               onCancel={store.cancelTurn}
               onCreateSession={(mode) => void store.createSession(undefined, mode)}
               onRenameSession={(title) => void store.renameCurrentSession(title)}
+              onUpdateSessionSettings={store.updateCurrentSessionSettings}
               onSelectSession={(sessionId) => void store.selectSession(sessionId)}
               onImportSessionToMode={(mode) => void store.importCurrentSessionToMode(mode)}
+              onOpenSettings={handleOpenSettings}
               onUpdateSettings={store.updateSettings}
             />
           </div>
@@ -147,6 +161,7 @@ export function App() {
                 onArchive={store.archiveQuestion}
                 onResolve={store.resolveQuestion}
                 onReopen={store.reopenQuestion}
+                onClearAll={store.clearAllQuestions}
               />
             ) : null}
 

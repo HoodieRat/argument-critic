@@ -81,6 +81,12 @@ export class QuestionsRepository {
     return rows.map((row) => mapQuestion(row));
   }
 
+  public clearAllActive(sessionId: string): void {
+    this.database
+      .prepare("UPDATE questions SET status = 'archived', updated_at = ? WHERE session_id = ? AND status = 'unanswered'")
+      .run(nowIso(), sessionId);
+  }
+
   public listHistory(sessionId: string, status?: QuestionStatus): QuestionRecord[] {
     if (status) {
       const filteredRows = this.database

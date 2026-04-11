@@ -41,6 +41,18 @@ function assertPackageManagerAvailable(): void {
   throw new Error("Corepack or pnpm is required but was not available. Install Node.js 22+, reopen the terminal, and try again.");
 }
 
+function warnIfGitHubCliMissing(): void {
+  if (process.platform !== "win32") {
+    return;
+  }
+
+  if (canRun("gh", ["--version"])) {
+    return;
+  }
+
+  process.stdout.write("GitHub CLI was not detected. Install Argument Critic.cmd installs it automatically on Windows so Sign in with GitHub can import Copilot-capable access.\n");
+}
+
 async function ensureWritableDirectory(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
   await access(path, fsConstants.W_OK);
@@ -73,6 +85,7 @@ function ensureElectronAvailable(): void {
 async function main(): Promise<void> {
   assertNodeVersion();
   assertPackageManagerAvailable();
+  warnIfGitHubCliMissing();
   ensureElectronAvailable();
 
   const requiredDirectories = [
@@ -90,6 +103,7 @@ async function main(): Promise<void> {
   process.stdout.write("Argument Critic prerequisites verified.\n");
   process.stdout.write("Run `corepack pnpm build` after dependencies are installed if you want the prebuilt desktop fast-start path.\n");
   process.stdout.write("On Windows, use `Install Argument Critic.cmd` once and then `Start Argument Critic.cmd` for normal launches.\n");
+  process.stdout.write("Normal onboarding uses Sign in with GitHub. Manual token entry is only an advanced fallback, and most manually created GitHub tokens unlock GitHub Models rather than the full Copilot catalog.\n");
 }
 
 main().catch((error: unknown) => {

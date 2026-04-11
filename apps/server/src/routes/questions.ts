@@ -40,4 +40,12 @@ export async function registerQuestionsRoutes(app: FastifyInstance, services: Ap
     const body = request.body as { sessionId: string };
     return services.questionResolutionService.reopenQuestion(body.sessionId, params.questionId);
   });
+
+  app.post("/questions/clear-all", async (request) => {
+    const body = request.body as { sessionId: string };
+    services.questionsRepository.clearAllActive(body.sessionId);
+    return {
+      activeQuestions: services.questionQueueService.listActive(body.sessionId)
+    };
+  });
 }

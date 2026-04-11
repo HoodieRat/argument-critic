@@ -3,6 +3,7 @@ import type { StdioOptions } from "node:child_process";
 
 import { GRACEFUL_SHUTDOWN_TIMEOUT_MS } from "../../config/constants.js";
 import type { Logger } from "../../logger.js";
+import { removePath } from "../../utils/fs.js";
 import { readJsonFile, writeJsonFile } from "../../utils/fs.js";
 import { isProcessRunning, spawnProcess, terminateProcessTree, waitForProcessExit } from "../../utils/process.js";
 
@@ -117,6 +118,19 @@ class ProcessSupervisor {
         });
         await terminateProcessTree(record.pid, true);
         await waitForProcessExit(record.pid, GRACEFUL_SHUTDOWN_TIMEOUT_MS * 2);
+      } finally {
+        if (record.managedProfileDir) {
+          try {
+            await removePath(record.managedProfileDir);
+          } catch (error) {
+            this.options.logger.warn("Managed browser profile cleanup failed", {
+              pid: record.pid,
+              role: record.role,
+              managedProfileDir: record.managedProfileDir,
+              error: error instanceof Error ? error.message : String(error)
+            });
+          }
+        }
       }
     }
 

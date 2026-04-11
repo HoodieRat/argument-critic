@@ -8,6 +8,7 @@
       name="description"
       content="Argument Critic is a local Windows desktop app that helps you think more clearly, challenge weak reasoning, save unresolved questions, and generate structured reports."
     />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -39,11 +40,12 @@
             </p>
             <div class="hero__actions">
               <a class="button button--primary" href="https://github.com/HoodieRat/argument-critic">View on GitHub</a>
-              <a class="button button--ghost" href="https://github.com/HoodieRat/argument-critic/archive/refs/heads/main.zip">Download ZIP</a>
+              <a class="button button--ghost" href="https://github.com/HoodieRat/argument-critic/releases/latest/download/Argument-Critic-Setup.exe">Download Installer</a>
             </div>
             <ul class="hero__points">
               <li>Local-first desktop workflow</li>
               <li>Built to ask better questions, not flatter you</li>
+              <li>Screenshots read as text by default, with direct image inspection still available</li>
               <li>Made for normal users, not just developers</li>
             </ul>
           </div>
@@ -93,7 +95,7 @@
             </article>
             <article class="feature-card">
               <h3>Capture</h3>
-              <p>Take a screenshot or crop part of the screen so the app can inspect visible evidence directly.</p>
+              <p>Take a screenshot or crop part of the screen so the app can extract the visible text by default or inspect the image directly when that is the better fit.</p>
             </article>
           </div>
         </section>
@@ -138,10 +140,9 @@
             <article class="install-card install-card--primary">
               <h3>Easy install path</h3>
               <ol>
-                <li>Download the project ZIP from GitHub.</li>
-                <li>Extract it to a normal folder on your PC.</li>
-                <li>Double-click <strong>Install Argument Critic.cmd</strong>.</li>
-                <li>When install finishes, double-click <strong>Start Argument Critic.cmd</strong>.</li>
+                <li>Download <strong>Argument-Critic-Setup.exe</strong> from the latest GitHub release.</li>
+                <li>Open the installer and finish the Windows install prompts.</li>
+                <li>Launch Argument Critic from the Start Menu or desktop shortcut.</li>
                 <li>Open Settings and choose <strong>Sign in with GitHub</strong>.</li>
               </ol>
             </article>
@@ -149,18 +150,20 @@
             <article class="install-card">
               <h3>What the installer handles for you</h3>
               <ul>
-                <li>Installs or upgrades Node.js if needed</li>
-                <li>Downloads the project dependencies</li>
-                <li>Prepares local folders</li>
-                <li>Builds the app for faster future starts</li>
+                <li>Installs the desktop app into Windows</li>
+                <li>Bundles the local companion service so Node.js is not required</li>
+                <li>Bundles the GitHub sign-in helper used by the default sign-in flow</li>
+                <li>Creates Start Menu shortcuts</li>
+                <li>Offers a desktop shortcut</li>
+                <li>Stores local data under your Windows user profile</li>
               </ul>
-              <p class="muted">The first install can take a few minutes. That is normal.</p>
+              <p class="muted">No ZIP extraction, Node.js, or pnpm setup is required for the normal install path.</p>
             </article>
           </div>
 
           <div class="callout">
             <strong>Need the hand-holding version?</strong>
-            <p>Use the Windows guide and troubleshooting pages in the repository if you want a slower, more step-by-step explanation.</p>
+            <p>Use the <a href="https://github.com/HoodieRat/argument-critic/blob/main/INSTALL.md">install guide</a>, the Windows guide, and the troubleshooting page if you want the slower step-by-step version.</p>
           </div>
         </section>
 
@@ -197,7 +200,7 @@
           <div class="faq-grid">
             <article class="faq-card">
               <h3>Do I need to know how to code?</h3>
-              <p>No. The normal Windows install path is built for non-coders.</p>
+              <p>No. The normal Windows install path is a standard installer download from Releases.</p>
             </article>
             <article class="faq-card">
               <h3>Is it a website or a desktop app?</h3>
@@ -205,11 +208,11 @@
             </article>
             <article class="faq-card">
               <h3>What is GitHub sign-in for?</h3>
-              <p>It is the easiest way to connect the app to supported GitHub-hosted model access without manual token juggling.</p>
+              <p>It is the easiest way to connect the app to Copilot-capable GitHub model access without manual token juggling. Manual token entry remains an advanced fallback.</p>
             </article>
             <article class="faq-card">
               <h3>What if something breaks?</h3>
-              <p>Use the troubleshooting guide in the repo and restart from the normal launcher scripts first.</p>
+              <p>Use the install guide and troubleshooting guide in the repo, then relaunch the installed app from the Start Menu.</p>
             </article>
           </div>
         </section>
@@ -219,6 +222,7 @@
         <p>Argument Critic</p>
         <div class="footer__links">
           <a href="https://github.com/HoodieRat/argument-critic">GitHub repository</a>
+          <a href="https://github.com/HoodieRat/argument-critic/blob/main/INSTALL.md">Install guide</a>
           <a href="https://github.com/HoodieRat/argument-critic/blob/main/README.md">README</a>
           <a href="https://github.com/HoodieRat/argument-critic/blob/main/docs/windows-guide.md">Windows guide</a>
         </div>

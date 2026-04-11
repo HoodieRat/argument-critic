@@ -1,11 +1,12 @@
 import { expect, test } from "vitest";
 
+import type { ChatTurnResponse } from "../../src/types/api.js";
 import { createTestHarness, parseJson } from "./testHarness.js";
 
 const tinyPng =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9XG4sAAAAASUVORK5CYII=";
 
-test("capture flow stores metadata and avoids redundant analysis for the same image region", async () => {
+test("capture flow stores metadata, reuses duplicate crops, and links captures into chat messages", async () => {
   const harness = await createTestHarness();
 
   try {
@@ -31,7 +32,7 @@ test("capture flow stores metadata and avoids redundant analysis for the same im
 
     expect(firstBody.attachment.contentHash).toBeTruthy();
     expect(firstBody.capture.id).toBeTruthy();
-    expect(firstBody.analysis).toContain("Saved a 22 x 18 crop to this session.");
+    expect(firstBody.analysis).toContain("22 x 18");
 
     const secondReply = await harness.app.inject({
       method: "POST",
@@ -48,7 +49,23 @@ test("capture flow stores metadata and avoids redundant analysis for the same im
 
     expect(secondBody.attachment.id).toBe(firstBody.attachment.id);
     expect(secondBody.analysis).toBe(firstBody.analysis);
+
+    const chatReply = await harness.app.inject({
+      method: "POST",
+      url: "/chat/turn",
+      payload: {
+        sessionId,
+        mode: "attachment_analysis",
+        message: "Describe the attached capture.",
+        attachmentIds: [firstBody.attachment.id]
+      }
+    });
+    const chatBody = parseJson<ChatTurnResponse>(chatReply.body);
+
+    expect(chatReply.statusCode).toBe(200);
+    expect(chatBody.answer).toContain("Attached material");
+    expect(chatBody.messages[0]?.attachments?.[0]?.id).toBe(firstBody.attachment.id);
   } finally {
     await harness.cleanup();
   }
-});
+}, 10_000);

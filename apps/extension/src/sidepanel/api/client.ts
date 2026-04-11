@@ -29,8 +29,8 @@ export class ApiClient {
     return this.request("/runtime/status");
   }
 
-  public getRuntimeSettings(): Promise<RuntimeSettings> {
-    return this.request("/runtime/settings");
+  public getRuntimeSettings(forceRefreshModels = false): Promise<RuntimeSettings> {
+    return this.request(`/runtime/settings${forceRefreshModels ? "?refreshModels=1" : ""}`);
   }
 
   public updateRuntimeSettings(input: Partial<RuntimeSettings>): Promise<RuntimeSettings> {
@@ -85,7 +85,7 @@ export class ApiClient {
     });
   }
 
-  public updateSession(sessionId: string, input: { title?: string }): Promise<{ session: SessionRecord }> {
+  public updateSession(sessionId: string, input: { title?: string; criticalityMultiplier?: number; structuredOutputEnabled?: boolean; imageTextExtractionEnabled?: boolean }): Promise<{ session: SessionRecord }> {
     return this.request(`/sessions/${sessionId}`, {
       method: "PATCH",
       body: JSON.stringify(input)
@@ -96,10 +96,19 @@ export class ApiClient {
     return this.request(`/sessions/${sessionId}`);
   }
 
-  public sendTurn(input: { sessionId?: string; mode: SessionMode; message: string; topic?: string; includeResearch?: boolean }): Promise<ChatTurnResponse> {
+  public sendTurn(input: { sessionId?: string; mode: SessionMode; message: string; attachmentIds?: string[]; topic?: string; includeResearch?: boolean }): Promise<ChatTurnResponse> {
     return this.request("/chat/turn", {
       method: "POST",
       body: JSON.stringify(input)
+    });
+  }
+
+  public uploadAttachment(sessionId: string, file: File): Promise<{ attachment: import("../types").AttachmentRecord }> {
+    const formData = new FormData();
+    formData.set("file", file, file.name);
+    return this.request(`/attachments/upload?sessionId=${encodeURIComponent(sessionId)}`, {
+      method: "POST",
+      body: formData
     });
   }
 
@@ -154,6 +163,13 @@ export class ApiClient {
     });
   }
 
+  public clearAllQuestions(sessionId: string): Promise<{ activeQuestions: QuestionRecord[] }> {
+    return this.request("/questions/clear-all", {
+      method: "POST",
+      body: JSON.stringify({ sessionId })
+    });
+  }
+
   public listReports(sessionId: string): Promise<{ reports: ReportRecord[] }> {
     return this.request(`/reports?sessionId=${encodeURIComponent(sessionId)}`);
   }
@@ -191,7 +207,7 @@ export class ApiClient {
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     const headers = new Headers(init?.headers ?? undefined);
-    if (init?.body !== undefined && !headers.has("Content-Type")) {
+    if (init?.body !== undefined && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
     }
     if (!headers.has("Accept")) {

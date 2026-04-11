@@ -24,22 +24,22 @@ function describeTokenSource(source: RuntimeSettings["githubModelsToken"]["sourc
     case "environment":
       return "Loaded from the startup environment for this server session.";
     default:
-      return "No token is configured.";
+      return "No credential is configured.";
   }
 }
 
 function describeTokenKind(kind: RuntimeSettings["modelAccess"]["tokenKind"] | undefined): string {
   switch (kind) {
     case "copilot":
-      return "Direct Copilot token detected.";
+      return "Direct Copilot access detected.";
     case "oauth_token":
-      return "GitHub sign-in token detected.";
+      return "GitHub sign-in detected.";
     case "personal_access_token":
-      return "Personal access token detected.";
+      return "Manual GitHub credential detected.";
     case "unknown":
-      return "Token format is unknown.";
+      return "Credential format is unknown.";
     default:
-      return "No token has been classified yet.";
+      return "No credential has been classified yet.";
   }
 }
 
@@ -49,7 +49,7 @@ function describeModelBackend(modelAccess: RuntimeSettings["modelAccess"] | unde
   }
 
   if (modelAccess?.backend === "copilot" && modelAccess.tokenKind === "personal_access_token") {
-    return "Requests are using the Copilot model service with your saved GitHub token.";
+    return "Requests are using the Copilot model service with your saved GitHub credential.";
   }
 
   switch (modelAccess?.backend) {
@@ -68,11 +68,11 @@ function describeModelWarning(modelAccess: RuntimeSettings["modelAccess"] | unde
   }
 
   if (modelAccess.backend === "github-models" && modelAccess.tokenKind === "personal_access_token") {
-    return "The saved token is a GitHub personal access token, and GitHub is only allowing GitHub Models for it here. Use GitHub sign-in or a Copilot-ready credential if you need Copilot-only models such as GPT-5.4 or Claude 4.6 in this app.";
+    return "The saved manual credential only unlocks GitHub Models here. Most manually created GitHub tokens do not expose the full Copilot catalog in this app. Use Sign in with GitHub if you need Copilot-only models such as GPT-5.4 or Claude 4.6.";
   }
 
   if (modelAccess.backend === "github-models" && modelAccess.tokenKind === "oauth_token") {
-    return "Your GitHub sign-in imported successfully, but GitHub is only allowing GitHub Models for this account in this app right now.";
+    return "Your GitHub sign-in imported successfully, but GitHub is only allowing GitHub Models for this credential path in this app right now.";
   }
 
   return modelAccess.warning;
@@ -85,9 +85,9 @@ function isGitHubLoginPending(flow: GitHubLoginFlow | null): boolean {
 function describeGitHubLoginState(flow: GitHubLoginFlow | null): string {
   switch (flow?.state) {
     case "checking":
-      return flow.authMethod === "oauth-device" ? "Preparing GitHub sign-in" : "Checking local GitHub sign-in";
+      return "Preparing GitHub sign-in";
     case "waiting":
-      return flow.authMethod === "oauth-device" ? "Enter your one-time GitHub code" : "Waiting for browser sign-in";
+      return flow.authMethod === "oauth-device" ? "Enter your one-time GitHub code" : "Finish GitHub sign-in in your browser";
     case "importing":
       return "Importing GitHub sign-in";
     case "succeeded":
@@ -124,11 +124,67 @@ function describeGitHubLoginBadgeClass(flow: GitHubLoginFlow | null, tokenConfig
 }
 
 function showGitHubCliInstallHint(flow: GitHubLoginFlow | null): boolean {
-  return flow?.authMethod === "github-cli" && flow.state === "failed" && /GitHub CLI|cli\.github\.com/i.test(flow.message);
+  return flow?.authMethod === "github-cli" && flow.state === "failed" && /GitHub CLI|sign-in helper|cli\.github\.com/i.test(flow.message);
 }
 
-function isOAuthDeviceFlow(flow: GitHubLoginFlow | null): boolean {
-  return flow?.authMethod === "oauth-device";
+function resolveGitHubLoginAuthMethod(settings: RuntimeSettings | null, flow: GitHubLoginFlow | null): RuntimeSettings["githubLoginAuthMethod"] {
+  return flow?.authMethod ?? settings?.githubLoginAuthMethod ?? "github-cli";
+}
+
+function describeGitHubLoginIntro(authMethod: RuntimeSettings["githubLoginAuthMethod"]): string {
+  if (authMethod === "oauth-device") {
+    return "Use Sign in with GitHub first. This build uses GitHub's device approval flow and refreshes the model list automatically after approval.";
+  }
+
+  return "Use Sign in with GitHub first. Windows installs bundle the GitHub sign-in helper, and source checkouts install the same helper through Install Argument Critic.cmd.";
+}
+
+function describeGitHubLoginActionLabel(authMethod: RuntimeSettings["githubLoginAuthMethod"], pending: boolean): string {
+  if (pending) {
+    return authMethod === "oauth-device" ? "Waiting for GitHub approval..." : "Waiting for GitHub sign-in...";
+  }
+
+  return "Sign in with GitHub";
+}
+
+function shouldShowConnectionSummary(settings: RuntimeSettings | null, flow: GitHubLoginFlow | null): boolean {
+  if ((settings?.githubModelsToken.configured ?? false) || (settings?.availableGitHubModels.length ?? 0) > 0) {
+    return true;
+  }
+
+  return flow?.state === "succeeded";
+}
+
+function describeConnectionBadge(modelAccess: RuntimeSettings["modelAccess"] | undefined, loadedModelCount: number): string {
+  if (modelAccess?.backend === "copilot") {
+    return "Copilot active";
+  }
+
+  if (modelAccess?.backend === "github-models") {
+    return "GitHub Models";
+  }
+
+  return loadedModelCount > 0 ? "Configured" : "Refreshing";
+}
+
+function describeModelUsage(model: RuntimeSettings["availableGitHubModels"][number]): string | null {
+  if (typeof model.multiplier === "number" && model.multiplier > 0 && model.isPremium) {
+    return `Usage x${model.multiplier}`;
+  }
+
+  return null;
+}
+
+function describeModelCatalogScope(modelAccess: RuntimeSettings["modelAccess"] | undefined): string {
+  if (modelAccess?.backend === "copilot") {
+    return "This is the full Copilot-backed list currently exposed to this signed-in account in this app.";
+  }
+
+  if (modelAccess?.backend === "github-models") {
+    return "This is the full GitHub Models list currently exposed to this credential path in this app. GitHub may expose a smaller catalog here than it does through Copilot-backed access.";
+  }
+
+  return "This list shows the models the current credential is exposing to this app right now.";
 }
 
 export function SettingsPanel(props: SettingsPanelProps) {
@@ -142,10 +198,18 @@ export function SettingsPanel(props: SettingsPanelProps) {
 
   const tokenStatus = props.settings?.githubModelsToken;
   const tokenConfigured = tokenStatus?.configured ?? false;
+  const canRemoveStoredCredential = tokenStatus?.source === "secure_store";
   const researchEnabled = props.settings?.researchEnabled ?? false;
+  const questionGenerationEnabled = props.settings?.questionGenerationEnabled ?? true;
   const autoTitleEnabled = props.settings?.sessionAutoTitleEnabled ?? true;
   const modelAccess = props.settings?.modelAccess;
+  const availableModels = props.settings?.availableGitHubModels ?? [];
+  const loadedModelCount = availableModels.length;
+  const meteredModelCount = availableModels.filter((model) => typeof model.multiplier === "number" && model.multiplier > 0 && model.isPremium).length;
+  const previewModelCount = availableModels.filter((model) => model.preview).length;
   const githubLoginPending = isGitHubLoginPending(props.githubLoginFlow);
+  const githubLoginAuthMethod = resolveGitHubLoginAuthMethod(props.settings, props.githubLoginFlow);
+  const showConnectionSummary = shouldShowConnectionSummary(props.settings, props.githubLoginFlow);
 
   async function handleSaveToken(): Promise<void> {
     const input = tokenInputRef.current;
@@ -153,6 +217,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     if (!token.trim()) {
       return;
     }
+
     await props.onSaveGitHubModelsToken(token);
     if (input) {
       input.value = "";
@@ -164,31 +229,22 @@ export function SettingsPanel(props: SettingsPanelProps) {
       <div className="section-heading">
         <div>
           <p className="eyebrow">Settings</p>
-          <h2>Runtime and research gate</h2>
-        </div>
-      </div>
-
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">GitHub sign-in</p>
           <h2>GitHub and Copilot access</h2>
         </div>
         <span className={describeGitHubLoginBadgeClass(props.githubLoginFlow, tokenConfigured)}>{describeGitHubLoginBadge(props.githubLoginFlow, tokenConfigured)}</span>
       </div>
 
-      <p className="detail-line">
-        {isOAuthDeviceFlow(props.githubLoginFlow)
-          ? "Use GitHub sign-in first. The app opens GitHub in your browser, shows a one-time code here, and then finishes the import automatically after you approve it."
-          : "Use GitHub sign-in first. This flow uses your browser, not a username/password form inside the app. If GitHub CLI is already signed in on this machine, the app will import it immediately. Otherwise it will open browser sign-in and finish the import automatically."}
-      </p>
+      <p className="detail-line">{describeGitHubLoginIntro(githubLoginAuthMethod)}</p>
 
-      <div className="quick-grid">
+      <div className={canRemoveStoredCredential ? "quick-grid" : "settings-actions-row"}>
         <button className="primary-button" type="button" onClick={() => void props.onStartGitHubLogin()} disabled={props.busy || githubLoginPending}>
-          {githubLoginPending ? "Waiting for GitHub approval..." : "Sign in with GitHub"}
+          {describeGitHubLoginActionLabel(githubLoginAuthMethod, githubLoginPending)}
         </button>
-        <button className="ghost-button" type="button" onClick={() => void props.onClearGitHubModelsToken()} disabled={props.busy || tokenStatus?.source !== "secure_store"}>
-          Remove stored credential
-        </button>
+        {canRemoveStoredCredential ? (
+          <button className="ghost-button" type="button" onClick={() => void props.onClearGitHubModelsToken()} disabled={props.busy}>
+            Remove stored credential
+          </button>
+        ) : null}
       </div>
 
       <div className={`settings-login-status settings-login-status--${props.githubLoginFlow?.state ?? "idle"}`}>
@@ -197,7 +253,9 @@ export function SettingsPanel(props: SettingsPanelProps) {
           <span className={describeGitHubLoginBadgeClass(props.githubLoginFlow, tokenConfigured)}>{describeGitHubLoginBadge(props.githubLoginFlow, tokenConfigured)}</span>
         </div>
         <p>
-          {props.githubLoginFlow?.message ?? "Recommended path: sign in with GitHub here, then let the app import that login and refresh the model list for you."}
+          {props.githubLoginFlow?.message ?? (githubLoginAuthMethod === "oauth-device"
+            ? "Recommended path: sign in with GitHub here, approve the code, and let the app refresh the model list automatically."
+            : "Recommended path: sign in with GitHub here. The Windows install uses GitHub CLI under the hood so the app can import Copilot-capable access automatically.")}
         </p>
         {props.githubLoginFlow?.userCode && props.githubLoginFlow?.verificationUri ? (
           <div className="settings-device-flow">
@@ -217,107 +275,192 @@ export function SettingsPanel(props: SettingsPanelProps) {
 
       {showGitHubCliInstallHint(props.githubLoginFlow) ? (
         <div className="session-header__notice session-header__notice--warning">
-          <p>GitHub CLI is required for browser sign-in on this build.</p>
-          <p className="detail-line settings-command">Windows install: winget install --id GitHub.cli -e</p>
-          <div className="quick-grid settings-login-help">
-            <button className="primary-button" type="button" onClick={() => void openExternalUrl("https://cli.github.com/")}>Open GitHub CLI download</button>
-            <button className="ghost-button" type="button" onClick={() => void openExternalUrl("https://cli.github.com/manual/gh_auth_login")}>Why no password box?</button>
+          <p>The GitHub sign-in helper is missing or unavailable, so Sign in with GitHub cannot complete yet.</p>
+          <p className="detail-line settings-command">Installed build: reinstall the latest release. Source checkout: re-run Install Argument Critic.cmd.</p>
+          <div className="settings-login-help">
+            <button className="primary-button" type="button" onClick={() => void openExternalUrl("https://github.com/HoodieRat/argument-critic/releases/latest")}>Open latest release</button>
           </div>
         </div>
       ) : null}
 
-      <p className="detail-line">Loaded models: {props.settings?.availableGitHubModels.length ?? 0}</p>
-      <p className="detail-line">{describeTokenSource(tokenStatus?.source)}</p>
-      <p className="detail-line">{describeTokenKind(modelAccess?.tokenKind)}</p>
-      <p className="detail-line">{describeModelBackend(modelAccess)}</p>
-      {tokenStatus?.updatedAt ? <p className="detail-line">Last updated: {new Date(tokenStatus.updatedAt).toLocaleString()}</p> : null}
-      {tokenStatus?.source === "environment" ? (
-        <p className="detail-line">Saving a token here will replace the environment-backed token for future requests. Removing the stored token will fall back to the environment token again.</p>
+      {showConnectionSummary ? (
+        <div className="settings-login-status settings-login-status--succeeded">
+          <div className="settings-login-status__header">
+            <strong>{loadedModelCount} models loaded</strong>
+            <span className="status-pill status-pill--ready">{describeConnectionBadge(modelAccess, loadedModelCount)}</span>
+          </div>
+          <p>{describeModelBackend(modelAccess)}</p>
+          <p className="detail-line">{describeTokenKind(modelAccess?.tokenKind)}</p>
+          <p className="detail-line">{describeTokenSource(tokenStatus?.source)}</p>
+          {tokenStatus?.updatedAt ? <p className="detail-line">Last updated: {new Date(tokenStatus.updatedAt).toLocaleString()}</p> : null}
+          {loadedModelCount > 0 ? (
+            <div className="settings-summary-grid">
+              <div className="settings-summary-item">
+                <span className="eyebrow">Listed</span>
+                <p>{loadedModelCount}</p>
+              </div>
+              <div className="settings-summary-item">
+                <span className="eyebrow">Metered</span>
+                <p>{meteredModelCount}</p>
+              </div>
+              <div className="settings-summary-item">
+                <span className="eyebrow">Preview</span>
+                <p>{previewModelCount}</p>
+              </div>
+            </div>
+          ) : null}
+        </div>
       ) : null}
-      {describeModelWarning(modelAccess) ? <div className="error-banner">{describeModelWarning(modelAccess)}</div> : null}
+
+      {availableModels.length > 0 ? (
+        <section className="settings-model-catalog">
+          <div className="settings-model-catalog__header">
+            <div>
+              <p className="eyebrow">Available models</p>
+              <h2>Current account catalog</h2>
+            </div>
+            <div className="settings-model-catalog__counts">
+              <span className="settings-model-badge">{loadedModelCount} listed</span>
+              {meteredModelCount > 0 ? <span className="settings-model-badge settings-model-badge--premium">{meteredModelCount} usage multiplier</span> : null}
+              {previewModelCount > 0 ? <span className="settings-model-badge">{previewModelCount} preview</span> : null}
+            </div>
+          </div>
+          <p className="detail-line">{describeModelCatalogScope(modelAccess)}</p>
+          <div className="settings-model-catalog__list">
+            {availableModels.map((model) => (
+              <article key={model.id} className="settings-model-item">
+                <div className="settings-model-item__copy">
+                  <strong>{model.name}</strong>
+                  <span>{model.vendor}</span>
+                </div>
+                <div className="settings-model-item__badges">
+                  {describeModelUsage(model) ? <span className="settings-model-badge settings-model-badge--premium">{describeModelUsage(model)}</span> : null}
+                  {model.preview ? <span className="settings-model-badge">Preview</span> : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {describeModelWarning(modelAccess) ? (
+        <div className="session-header__notice session-header__notice--warning">
+          <p>Why some models are missing</p>
+          <p className="detail-line">{describeModelWarning(modelAccess)}</p>
+        </div>
+      ) : null}
 
       <details className="session-header__advanced-options">
-        <summary>Advanced fallback: paste a token manually</summary>
+        <summary>Advanced settings</summary>
         <div className="session-header__advanced-options-body settings-advanced-auth">
-          <p className="detail-line settings-advanced-auth__copy">Use this only if you already know the credential works for Copilot in this app. GitHub sign-in above is the default onboarding path.</p>
+          <p className="detail-line">Preferred sign-in path: {githubLoginAuthMethod === "oauth-device" ? "Direct GitHub device approval" : "GitHub CLI-backed GitHub sign-in"}</p>
+          {tokenStatus?.source === "environment" ? <p className="detail-line">Saving a manual credential here will replace the environment-provided credential for future requests. Removing the stored credential will fall back to the environment value again.</p> : null}
+          {props.githubLoginFlow?.reviewUri ? (
+            <button className="ghost-button" type="button" onClick={() => void openExternalUrl(props.githubLoginFlow?.reviewUri ?? "")}>Open GitHub review page</button>
+          ) : null}
 
-          <label className="field field--wide">
-            <span>GitHub or Copilot token</span>
-            <input ref={tokenInputRef} type="password" autoComplete="new-password" spellCheck={false} placeholder={tokenConfigured ? "Enter a new token to replace the stored one" : "Paste a GitHub or Copilot token"} />
-          </label>
-
-          <div className="quick-grid settings-advanced-auth__actions">
-            <button className="primary-button" type="button" onClick={() => void handleSaveToken()} disabled={props.busy}>
-              Save token securely
-            </button>
-            <button
-              className="ghost-button"
-              type="button"
-              onClick={() => {
-                if (tokenInputRef.current) {
-                  tokenInputRef.current.value = "";
-                }
-              }}
-              disabled={props.busy}
-            >
-              Clear pasted token
-            </button>
+          <div className="settings-advanced-block">
+            <p className="eyebrow">Manual fallback</p>
+            <p className="detail-line settings-advanced-auth__copy">Use this only if you already have a credential that you know works in this app. GitHub sign-in above is the default onboarding path, and normal GitHub tokens usually expose GitHub Models only rather than the full Copilot catalog.</p>
+            <label className="field field--wide">
+              <span>GitHub or Copilot credential</span>
+              <input ref={tokenInputRef} type="password" autoComplete="new-password" spellCheck={false} placeholder={tokenConfigured ? "Enter a new credential to replace the stored one" : "Paste a GitHub or Copilot credential"} />
+            </label>
+            <div className="quick-grid settings-advanced-auth__actions">
+              <button className="primary-button" type="button" onClick={() => void handleSaveToken()} disabled={props.busy}>
+                Save credential securely
+              </button>
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => {
+                  if (tokenInputRef.current) {
+                    tokenInputRef.current.value = "";
+                  }
+                }}
+                disabled={props.busy}
+              >
+                Clear pasted credential
+              </button>
+            </div>
           </div>
+
+          <div className="settings-advanced-block">
+            <p className="eyebrow">App settings</p>
+            <label className="field">
+              <span>Local API base URL</span>
+              <input value={apiBaseUrl} onChange={(event) => setApiBaseUrl(event.target.value)} placeholder="http://127.0.0.1:4317" />
+            </label>
+            <button className="ghost-button settings-save-inline" type="button" onClick={() => void props.onSetApiBaseUrl(apiBaseUrl)} disabled={props.busy}>
+              Save API URL
+            </button>
+
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={autoTitleEnabled}
+                onChange={(event) => void props.onUpdateSettings({ sessionAutoTitleEnabled: event.target.checked })}
+              />
+              <span>
+                <strong>Auto-name sessions from the first message</strong>
+                <small className="detail-line">Blank sessions will rename themselves after the first real turn unless you rename them manually first.</small>
+              </span>
+            </label>
+
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={questionGenerationEnabled}
+                onChange={(event) => void props.onUpdateSettings({ questionGenerationEnabled: event.target.checked })}
+              />
+              <span>
+                <strong>Generate follow-up questions</strong>
+                <small className="detail-line">Keep this on if you want the queue to propose new questions. It stops automatically once five active questions are open.</small>
+              </span>
+            </label>
+          </div>
+
+          <details className="session-header__advanced-options settings-nested-details">
+            <summary>Research import</summary>
+            <div className="session-header__advanced-options-body settings-advanced-auth">
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={researchEnabled}
+                  onChange={(event) => void props.onUpdateSettings({ researchEnabled: event.target.checked })}
+                />
+                <span>
+                  <strong>Allow GPT-Researcher imports</strong>
+                  <small className="detail-line">Turn this on before importing outside research into the current workspace context.</small>
+                </span>
+              </label>
+
+              <label className="field">
+                <span>Paste GPT-Researcher JSON or bullet output</span>
+                <textarea value={researchPayload} onChange={(event) => setResearchPayload(event.target.value)} rows={7} disabled={!researchEnabled} />
+              </label>
+              {!researchEnabled ? <p className="detail-line">Research import is off. Enable it above to unlock the import box.</p> : null}
+              <button className="primary-button" type="button" onClick={() => void props.onImportResearch(researchPayload, researchEnabled)} disabled={!researchEnabled || !researchPayload.trim()}>
+                Import research
+              </button>
+
+              {props.researchRuns.length > 0 ? (
+                <div className="history-list">
+                  {props.researchRuns.map((run) => (
+                    <article key={run.id} className="history-item">
+                      <div className="history-item__meta">
+                        <span>{run.provider}</span>
+                        <span>{new Date(run.createdAt).toLocaleString()}</span>
+                      </div>
+                      <p>{run.id}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </details>
         </div>
       </details>
-
-      <label className="field">
-        <span>Local API base URL</span>
-        <input value={apiBaseUrl} onChange={(event) => setApiBaseUrl(event.target.value)} placeholder="http://127.0.0.1:4317" />
-      </label>
-      <button className="ghost-button" type="button" onClick={() => void props.onSetApiBaseUrl(apiBaseUrl)} disabled={props.busy}>
-        Save API URL
-      </button>
-
-      <label className="checkbox-row">
-        <input
-          type="checkbox"
-          checked={autoTitleEnabled}
-          onChange={(event) => void props.onUpdateSettings({ sessionAutoTitleEnabled: event.target.checked })}
-        />
-        <span>
-          <strong>Auto-name sessions from the first message</strong>
-          <small className="detail-line">Blank sessions will rename themselves after the first real turn unless you rename them manually first.</small>
-        </span>
-      </label>
-
-      <label className="checkbox-row">
-        <input
-          type="checkbox"
-          checked={researchEnabled}
-          onChange={(event) => void props.onUpdateSettings({ researchEnabled: event.target.checked })}
-        />
-        <span>
-          <strong>Allow GPT-Researcher imports</strong>
-          <small className="detail-line">Turn this on before importing outside research into the current workspace context.</small>
-        </span>
-      </label>
-
-      <label className="field">
-        <span>Paste GPT-Researcher JSON or bullet output</span>
-        <textarea value={researchPayload} onChange={(event) => setResearchPayload(event.target.value)} rows={7} disabled={!researchEnabled} />
-      </label>
-      {!researchEnabled ? <p className="detail-line">Research import is off. Enable it above to unlock the import box.</p> : null}
-      <button className="primary-button" type="button" onClick={() => void props.onImportResearch(researchPayload, researchEnabled)} disabled={!researchEnabled || !researchPayload.trim()}>
-        Import research
-      </button>
-
-      <div className="history-list">
-        {props.researchRuns.map((run) => (
-          <article key={run.id} className="history-item">
-            <div className="history-item__meta">
-              <span>{run.provider}</span>
-              <span>{new Date(run.createdAt).toLocaleString()}</span>
-            </div>
-            <p>{run.id}</p>
-          </article>
-        ))}
-      </div>
     </section>
   );
 }

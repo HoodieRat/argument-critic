@@ -11,9 +11,9 @@ import type {
   RuntimeTokenUpdateRequest
 } from "../types/api.js";
 
-async function getRuntimeSettings(services: AppServices): Promise<RuntimeSettingsResponse> {
+async function getRuntimeSettings(services: AppServices, options: { forceRefreshModels?: boolean } = {}): Promise<RuntimeSettingsResponse> {
   const selectedModelSetting = services.settingsRepository.get("runtime.githubModel", services.config.githubModel);
-  const modelCatalog = await services.copilotModelCatalog.getSelectedModel(selectedModelSetting);
+  const modelCatalog = await services.copilotModelCatalog.getSelectedModel(selectedModelSetting, options.forceRefreshModels);
   const selectedModel = modelCatalog.model;
   const storedReasoningEffort = services.settingsRepository.get<string | null>("runtime.githubModelReasoningEffort", null);
   const storedThinkingBudget = services.settingsRepository.get<number | null>("runtime.githubModelThinkingBudget", null);
@@ -28,6 +28,8 @@ async function getRuntimeSettings(services: AppServices): Promise<RuntimeSetting
 
   return {
     researchEnabled: services.settingsRepository.get("research.enabled", services.config.researchEnabled),
+    questionGenerationEnabled: services.settingsRepository.get("questions.generationEnabled", true),
+    githubLoginAuthMethod: services.config.githubLoginAuthMethod,
     githubModel: modelCatalog.selectedModelId,
     availableGitHubModels: modelCatalog.availableModels,
     modelAccess: modelCatalog.access,
@@ -53,12 +55,19 @@ export async function registerRuntimeRoutes(app: FastifyInstance, services: AppS
     return { accepted: true };
   });
 
-  app.get("/runtime/settings", async (): Promise<RuntimeSettingsResponse> => await getRuntimeSettings(services));
+  app.get("/runtime/settings", async (request): Promise<RuntimeSettingsResponse> => {
+    const query = (request.query ?? {}) as { refreshModels?: string | boolean | number };
+    const refreshModels = query.refreshModels === true || query.refreshModels === 1 || query.refreshModels === "1" || query.refreshModels === "true";
+    return await getRuntimeSettings(services, { forceRefreshModels: refreshModels });
+  });
 
   app.put("/runtime/settings", async (request): Promise<RuntimeSettingsResponse> => {
     const body = (request.body ?? {}) as RuntimeSettingsUpdateRequest;
     if (typeof body.researchEnabled === "boolean") {
       services.settingsRepository.set("research.enabled", body.researchEnabled);
+    }
+    if (typeof body.questionGenerationEnabled === "boolean") {
+      services.settingsRepository.set("questions.generationEnabled", body.questionGenerationEnabled);
     }
     if (typeof body.githubModel === "string" && body.githubModel.trim()) {
       services.settingsRepository.set("runtime.githubModel", body.githubModel.trim());

@@ -22,7 +22,7 @@ export function CaptureControls(props: CaptureControlsProps) {
         </div>
       </div>
 
-      <p className="detail-line">Save the whole window or choose a crop area. The latest image stays attached to this session.</p>
+      <p className="detail-line">Save the whole window or choose a crop area. The latest image stays attached to this session and drops into the chat box automatically.</p>
 
       <div className="quick-grid">
         <button

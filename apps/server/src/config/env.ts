@@ -5,6 +5,7 @@ import { z } from "zod";
 import { DEFAULT_HOST, DEFAULT_PORT } from "./constants.js";
 
 export type UiShell = "desktop" | "extension" | "none";
+export type GitHubLoginAuthMethod = "oauth-device" | "github-cli";
 
 const envSchema = z.object({
   ARGUMENT_CRITIC_HOST: z.string().default(DEFAULT_HOST),
@@ -14,6 +15,7 @@ const envSchema = z.object({
   ARGUMENT_CRITIC_LAUNCH_CHROME: z.enum(["true", "false"]).optional(),
   ARGUMENT_CRITIC_CHROME_EXECUTABLE: z.string().optional(),
   ARGUMENT_CRITIC_GITHUB_MODELS_TOKEN: z.string().optional(),
+  ARGUMENT_CRITIC_GITHUB_LOGIN_AUTH_METHOD: z.enum(["github-cli", "oauth-device"]).optional(),
   ARGUMENT_CRITIC_GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
   ARGUMENT_CRITIC_GITHUB_MODEL: z.string().default("gpt-4.1"),
   ARGUMENT_CRITIC_RESEARCH_ENABLED: z.enum(["true", "false"]).default("false")
@@ -25,6 +27,7 @@ export interface EnvironmentConfig {
   readonly dataDir: string;
   readonly uiShell: UiShell;
   readonly chromeExecutable?: string;
+  readonly githubLoginAuthMethod: GitHubLoginAuthMethod;
   readonly githubOAuthClientId?: string;
   readonly githubModel: string;
   readonly researchEnabled: boolean;
@@ -99,6 +102,14 @@ function resolveUiShell(parsed: ReturnType<typeof parseEnvironment>): UiShell {
   return "desktop";
 }
 
+function resolveGitHubLoginAuthMethod(parsed: ReturnType<typeof parseEnvironment>): GitHubLoginAuthMethod {
+  if (parsed.ARGUMENT_CRITIC_GITHUB_LOGIN_AUTH_METHOD === "oauth-device" && parsed.ARGUMENT_CRITIC_GITHUB_OAUTH_CLIENT_ID) {
+    return "oauth-device";
+  }
+
+  return "github-cli";
+}
+
 export function getEnvironmentConfig(rootDir: string): EnvironmentConfig {
   const parsed = parseEnvironment(rootDir);
 
@@ -108,6 +119,7 @@ export function getEnvironmentConfig(rootDir: string): EnvironmentConfig {
     dataDir: resolve(rootDir, parsed.ARGUMENT_CRITIC_DATA_DIR ?? "data"),
     uiShell: resolveUiShell(parsed),
     chromeExecutable: parsed.ARGUMENT_CRITIC_CHROME_EXECUTABLE,
+    githubLoginAuthMethod: resolveGitHubLoginAuthMethod(parsed),
     githubOAuthClientId: parsed.ARGUMENT_CRITIC_GITHUB_OAUTH_CLIENT_ID,
     githubModel: parsed.ARGUMENT_CRITIC_GITHUB_MODEL,
     researchEnabled: parsed.ARGUMENT_CRITIC_RESEARCH_ENABLED === "true"

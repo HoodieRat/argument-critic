@@ -10,6 +10,12 @@ export interface SessionRecord {
   readonly mode: SessionMode;
   readonly topic: string | null;
   readonly summary: string | null;
+  readonly sourceSessionId: string | null;
+  readonly sourceSessionMode: SessionMode | null;
+  readonly handoffPrompt: string | null;
+  readonly criticalityMultiplier: number;
+  readonly structuredOutputEnabled: boolean;
+  readonly imageTextExtractionEnabled: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -20,6 +26,7 @@ export interface MessageRecord {
   readonly role: MessageRole;
   readonly content: string;
   readonly provenance: ResponseProvenance;
+  readonly attachments?: AttachmentRecord[];
   readonly createdAt: string;
 }
 
@@ -28,6 +35,7 @@ export interface AttachmentRecord {
   readonly sessionId: string;
   readonly type: string;
   readonly path: string;
+  readonly displayName: string | null;
   readonly mimeType: string;
   readonly width: number | null;
   readonly height: number | null;

@@ -25,22 +25,46 @@ test("importing a session to critic creates a separate transcript with copied me
         mode: "critic"
       }
     });
-    const imported = parseJson<{ session: { id: string; mode: string; title: string } }>(importReply.body);
+    const imported = parseJson<{
+      session: {
+        id: string;
+        mode: string;
+        title: string;
+        sourceSessionId: string | null;
+        sourceSessionMode: string | null;
+        handoffPrompt: string | null;
+      };
+    }>(importReply.body);
 
     const importedSessionReply = await harness.app.inject({
       method: "GET",
       url: `/sessions/${imported.session.id}`
     });
-    const importedSession = parseJson<{ session: { id: string; mode: string; title: string }; messages: Array<{ role: string; content: string }> }>(importedSessionReply.body);
+    const importedSession = parseJson<{
+      session: {
+        id: string;
+        mode: string;
+        title: string;
+        sourceSessionId: string | null;
+        sourceSessionMode: string | null;
+        handoffPrompt: string | null;
+      };
+      messages: Array<{ role: string; content: string }>;
+    }>(importedSessionReply.body);
 
     expect(importReply.statusCode).toBe(200);
     expect(imported.session.mode).toBe("critic");
     expect(imported.session.title).toContain("Critic import:");
     expect(imported.session.id).not.toBe(firstBody.session.id);
+    expect(imported.session.sourceSessionId).toBe(firstBody.session.id);
+    expect(imported.session.sourceSessionMode).toBe("normal_chat");
+    expect(imported.session.handoffPrompt).toContain("Treat the copied conversation in this session as the case to challenge");
     expect(importedSession.messages).toHaveLength(2);
+    expect(importedSession.session.sourceSessionId).toBe(firstBody.session.id);
+    expect(importedSession.session.sourceSessionMode).toBe("normal_chat");
     expect(importedSession.messages[0]?.role).toBe("user");
     expect(importedSession.messages[0]?.content).toContain("replace meetings with async updates");
   } finally {
     await harness.cleanup();
   }
-});
+}, 10_000);

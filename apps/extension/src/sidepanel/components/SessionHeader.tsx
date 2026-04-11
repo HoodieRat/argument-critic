@@ -2,10 +2,8 @@ import { MODE_METADATA } from "../modeMetadata";
 import type { SessionMode } from "../types";
 
 interface SessionHeaderProps {
-  readonly runtimeReady: boolean;
   readonly busy: boolean;
   readonly mode: SessionMode;
-  readonly tokenConfigured: boolean;
   readonly settingsViewOpen: boolean;
   readonly onSetMode: (mode: SessionMode) => void;
   readonly onOpenSettings: () => void;
@@ -45,20 +43,9 @@ export function SessionHeader(props: SessionHeaderProps) {
       <div className="session-header__topline session-header__topline--compact">
         <div className="session-header__brand">
           <h1>Argument Critic</h1>
-          <div className="status-cluster status-cluster--compact">
-            <span className={`status-pill ${props.runtimeReady ? "status-pill--ready" : "status-pill--down"}`} title={props.runtimeReady ? "Local server ready" : "Server unavailable"}>
-              {props.runtimeReady ? "Local" : "Server down"}
-            </span>
-            <span className={`status-pill ${props.tokenConfigured ? "status-pill--ready" : "status-pill--down"}`} title={props.tokenConfigured ? "Token configured" : "Token missing"}>
-              {props.tokenConfigured ? "Token saved" : "No token"}
-            </span>
-          </div>
         </div>
 
         <div className="session-header__actions">
-          <button className="icon-button primary-button" type="button" onClick={props.onCaptureCrop} disabled={props.busy} title="Cropshot">
-            <CameraIcon />
-          </button>
           <button
             className={`icon-button ${props.settingsViewOpen ? "primary-button" : "ghost-button"}`}
             type="button"
@@ -73,21 +60,28 @@ export function SessionHeader(props: SessionHeaderProps) {
         </div>
       </div>
 
-      <div className="mode-strip">
-        {CONVERSATION_MODES.map((laneMode) => {
-          const metadata = MODE_METADATA[laneMode];
-          return (
-            <button
-              key={laneMode}
-              type="button"
-              className={`mode-chip ${props.mode === laneMode ? "mode-chip--active" : ""}`}
-              onClick={() => props.onSetMode(laneMode)}
-              title={metadata.summary}
-            >
-              {metadata.label}
-            </button>
-          );
-        })}
+      <div className="session-header__lane-row">
+        <div className="mode-strip">
+          {CONVERSATION_MODES.map((laneMode) => {
+            const metadata = MODE_METADATA[laneMode];
+            return (
+              <button
+                key={laneMode}
+                type="button"
+                className={`mode-chip ${props.mode === laneMode ? "mode-chip--active" : ""}`}
+                onClick={() => props.onSetMode(laneMode)}
+                title={metadata.summary}
+              >
+                {metadata.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <button className="icon-button primary-button session-header__camera-button" type="button" onClick={props.onCaptureCrop} disabled={props.busy} title="Cropshot">
+          <CameraIcon />
+          <span>Capture</span>
+        </button>
       </div>
     </header>
   );

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,6 +8,7 @@ import { describe, expect, test } from "vitest";
 
 import { createLogger } from "../../src/logger.js";
 import { isProcessRunning, waitForProcessExit } from "../../src/utils/process.js";
+import { fileExists } from "../../src/utils/fs.js";
 import { createProcessSupervisor } from "../../src/services/runtime/ProcessSupervisor.js";
 import { createShutdownCoordinator } from "../../src/services/runtime/ShutdownCoordinator.js";
 import { createStaleProcessRecovery } from "../../src/services/runtime/StaleProcessRecovery.js";
@@ -124,4 +125,32 @@ describe.sequential("runtime lifecycle", () => {
       await rm(dataDir, { recursive: true, force: true });
     }
   }, 25_000);
+
+  test("supervisor shutdown removes managed browser profile directories", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "argument-critic-managed-profile-"));
+    const logger = createLogger("runtime-test");
+    const registryPath = join(dataDir, "runtime", "process-registry.json");
+    const supervisor = createProcessSupervisor({ registryPath, logger });
+    const coordinator = createShutdownCoordinator({ logger, processSupervisor: supervisor });
+    const profileDir = join(dataDir, "runtime", "managed-chrome-profile");
+
+    try {
+      await mkdir(profileDir, { recursive: true });
+      await writeFile(join(profileDir, "placeholder.txt"), "managed profile data", "utf8");
+
+      const managedChild = await supervisor.spawn({
+        command: process.execPath,
+        args: ["-e", "setInterval(() => {}, 1000);"] ,
+        role: "managed-chrome",
+        managedProfileDir: profileDir
+      });
+
+      await coordinator.shutdown("test-shutdown");
+      await waitForOwnedProcessExit(managedChild.pid!, 10_000);
+
+      expect(await fileExists(profileDir)).toBe(false);
+    } finally {
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  }, 15_000);
 });

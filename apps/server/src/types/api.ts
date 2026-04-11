@@ -13,6 +13,7 @@ export interface ChatTurnRequest {
   readonly sessionId?: string;
   readonly mode: SessionMode;
   readonly message: string;
+  readonly attachmentIds?: string[];
   readonly topic?: string;
   readonly includeResearch?: boolean;
   readonly replyToQuestionId?: string;
@@ -79,6 +80,10 @@ export interface CaptureSubmitResponse {
   readonly analysis: string | null;
 }
 
+export interface AttachmentUploadResponse {
+  readonly attachment: AttachmentRecord;
+}
+
 export interface RuntimeStatusResponse {
   readonly ready: boolean;
   readonly sessionCount: number;
@@ -143,6 +148,8 @@ export interface ModelAccessStatusResponse {
 
 export interface RuntimeSettingsResponse {
   readonly researchEnabled: boolean;
+  readonly questionGenerationEnabled: boolean;
+  readonly githubLoginAuthMethod: GitHubLoginAuthMethodResponse;
   readonly githubModel: string;
   readonly availableGitHubModels: GitHubModelOptionResponse[];
   readonly modelAccess: ModelAccessStatusResponse;
@@ -155,6 +162,7 @@ export interface RuntimeSettingsResponse {
 
 export interface RuntimeSettingsUpdateRequest {
   readonly researchEnabled?: boolean;
+  readonly questionGenerationEnabled?: boolean;
   readonly githubModel?: string;
   readonly githubModelThinkingEnabled?: boolean;
   readonly githubModelReasoningEffort?: string | null;
@@ -174,6 +182,9 @@ export interface SessionImportRequest {
 
 export interface SessionUpdateRequest {
   readonly title?: string;
+  readonly criticalityMultiplier?: number;
+  readonly structuredOutputEnabled?: boolean;
+  readonly imageTextExtractionEnabled?: boolean;
 }
 
 export interface ResearchImportRequest {

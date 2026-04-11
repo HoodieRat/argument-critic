@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { ApiClient } from "../api/client";
 import { captureCrop, captureVisible, isCaptureCancellationError, loadPersistedApiBaseUrl, openExternalUrl, persistApiBaseUrl } from "../platform";
 import type {
+  AttachmentRecord,
   BackgroundCaptureResult,
   CaptureSubmitResponse,
   DatabaseQueryResponse,
@@ -39,6 +40,7 @@ interface AppState {
   readonly selectedReport: ReportRecord | null;
   readonly databaseResult: DatabaseQueryResponse | null;
   readonly captureResult: CaptureSubmitResponse | null;
+  readonly pendingAttachments: AttachmentRecord[];
   readonly researchRuns: Array<{ id: string; provider: string; createdAt: string }>;
   readonly activePanel: AuxiliaryPanel;
   readonly isBusy: boolean;
@@ -49,12 +51,15 @@ interface AppState {
   readonly setApiBaseUrl: (url: string) => Promise<void>;
   readonly createSession: (title?: string, mode?: SessionMode) => Promise<void>;
   readonly renameCurrentSession: (title: string) => Promise<void>;
+  readonly updateCurrentSessionSettings: (patch: { criticalityMultiplier?: number; structuredOutputEnabled?: boolean; imageTextExtractionEnabled?: boolean }) => Promise<void>;
   readonly importCurrentSessionToMode: (mode: SessionMode) => Promise<void>;
   readonly quickCaptureCrop: () => Promise<void>;
   readonly captureVisibleArea: (analyze: boolean) => Promise<void>;
   readonly captureCropArea: (analyze: boolean) => Promise<void>;
   readonly selectSession: (sessionId: string) => Promise<void>;
   readonly sendMessage: (message: string) => Promise<void>;
+  readonly uploadAttachments: (files: File[]) => Promise<void>;
+  readonly removePendingAttachment: (attachmentId: string) => void;
   readonly cancelTurn: () => Promise<void>;
   readonly refreshQuestions: () => Promise<void>;
   readonly loadQuestionHistory: (status?: QuestionStatus) => Promise<void>;
@@ -62,6 +67,7 @@ interface AppState {
   readonly archiveQuestion: (questionId: string) => Promise<void>;
   readonly resolveQuestion: (questionId: string) => Promise<void>;
   readonly reopenQuestion: (questionId: string) => Promise<void>;
+  readonly clearAllQuestions: () => Promise<void>;
   readonly runDatabaseQuery: (query: string, interpret?: boolean) => Promise<void>;
   readonly generateReport: (reportType: string) => Promise<void>;
   readonly submitCapture: (capture: BackgroundCaptureResult, analyze: boolean) => Promise<void>;
@@ -103,6 +109,19 @@ async function ensureSession(get: () => AppState): Promise<SessionRecord> {
   return result.session;
 }
 
+function findSessionForMode(sessions: SessionRecord[], mode: SessionMode): SessionRecord | null {
+  return sessions.find((session) => session.mode === mode) ?? null;
+}
+
+function describeStartupError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/\bis not defined\b/i.test(message)) {
+    return "The app hit an internal startup error. Restart it and try again.";
+  }
+
+  return message;
+}
+
 function buildCaptureFailureState(error: unknown): Pick<AppState, "error" | "activePanel" | "isBusy"> | Pick<AppState, "isBusy"> {
   if (isCaptureCancellationError(error)) {
     return { isBusy: false };
@@ -120,6 +139,15 @@ function stopGitHubLoginPolling(): void {
     clearTimeout(githubLoginPollTimer);
     githubLoginPollTimer = null;
   }
+}
+
+function mergePendingAttachments(current: AttachmentRecord[], additions: AttachmentRecord[]): AttachmentRecord[] {
+  const attachmentsById = new Map(current.map((attachment) => [attachment.id, attachment]));
+  for (const attachment of additions) {
+    attachmentsById.set(attachment.id, attachment);
+  }
+
+  return [...attachmentsById.values()];
 }
 
 function createLocalGitHubLoginFailure(message: string, currentFlow: GitHubLoginFlow | null): GitHubLoginFlow {
@@ -141,8 +169,8 @@ function createLocalGitHubLoginFailure(message: string, currentFlow: GitHubLogin
 }
 
 export const useAppStore = create<AppState>((set, get) => {
-  async function refreshRuntimeSettingsOnly(): Promise<RuntimeSettings> {
-    const settings = await client.getRuntimeSettings();
+  async function refreshRuntimeSettingsOnly(forceRefreshModels = false): Promise<RuntimeSettings> {
+    const settings = await client.getRuntimeSettings(forceRefreshModels);
     set({ settings });
     return settings;
   }
@@ -171,7 +199,7 @@ export const useAppStore = create<AppState>((set, get) => {
         stopGitHubLoginPolling();
         if (flow.state === "succeeded") {
           try {
-            await refreshRuntimeSettingsOnly();
+            await refreshRuntimeSettingsOnly(true);
           } catch (error) {
             set({
               githubLoginFlow: {
@@ -213,6 +241,7 @@ export const useAppStore = create<AppState>((set, get) => {
   selectedReport: null,
   databaseResult: null,
   captureResult: null,
+  pendingAttachments: [],
   researchRuns: [],
   activePanel: "history",
   isBusy: false,
@@ -225,12 +254,13 @@ export const useAppStore = create<AppState>((set, get) => {
       client.setBaseUrl(apiBaseUrl);
       const [runtimeStatus, settings, sessionsResponse] = await Promise.all([
         client.getRuntimeStatus(),
-        client.getRuntimeSettings(),
+        client.getRuntimeSettings(true),
         client.listSessions()
       ]);
-      let currentSession = sessionsResponse.sessions[0] ?? null;
+      const preferredMode = get().mode;
+      let currentSession = findSessionForMode(sessionsResponse.sessions, preferredMode);
       if (!currentSession) {
-        currentSession = (await client.createSession({ title: "Untitled Session", mode: get().mode })).session;
+        currentSession = (await client.createSession({ title: "Untitled Session", mode: preferredMode })).session;
       }
       const [sessionDetail, questionHistory, reports, researchRuns] = await Promise.all([
         client.getSession(currentSession.id),
@@ -251,13 +281,14 @@ export const useAppStore = create<AppState>((set, get) => {
         questionHistory: questionHistory.questions,
         reports: reports.reports,
         selectedReport: reports.reports[0] ?? null,
+        pendingAttachments: [],
         researchRuns: researchRuns.runs,
         isBusy: false
       });
     } catch (error) {
       set({
         isBusy: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: describeStartupError(error)
       });
     }
   },
@@ -311,6 +342,51 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
     } catch (error) {
       set({ error: error instanceof Error ? error.message : String(error), isBusy: false });
+    }
+  },
+  updateCurrentSessionSettings: async (patch) => {
+    const session = get().currentSession;
+    if (!session) {
+      return;
+    }
+
+    const hasCriticalityUpdate = typeof patch.criticalityMultiplier === "number" && Number.isFinite(patch.criticalityMultiplier);
+    const hasStructuredOutputUpdate = typeof patch.structuredOutputEnabled === "boolean";
+    const hasImageTextExtractionUpdate = typeof patch.imageTextExtractionEnabled === "boolean";
+    if (!hasCriticalityUpdate && !hasStructuredOutputUpdate && !hasImageTextExtractionUpdate) {
+      return;
+    }
+
+    const previousSession = session;
+    const optimisticSession: SessionRecord = {
+      ...session,
+      ...(hasCriticalityUpdate ? { criticalityMultiplier: patch.criticalityMultiplier! } : {}),
+      ...(hasStructuredOutputUpdate ? { structuredOutputEnabled: patch.structuredOutputEnabled! } : {}),
+      ...(hasImageTextExtractionUpdate ? { imageTextExtractionEnabled: patch.imageTextExtractionEnabled! } : {})
+    };
+
+    set((state) => ({
+      currentSession: optimisticSession,
+      sessions: [optimisticSession, ...state.sessions.filter((item) => item.id !== optimisticSession.id)],
+      error: null
+    }));
+
+    try {
+      const updated = (await client.updateSession(session.id, {
+        ...(hasCriticalityUpdate ? { criticalityMultiplier: patch.criticalityMultiplier } : {}),
+        ...(hasStructuredOutputUpdate ? { structuredOutputEnabled: patch.structuredOutputEnabled } : {}),
+        ...(hasImageTextExtractionUpdate ? { imageTextExtractionEnabled: patch.imageTextExtractionEnabled } : {})
+      })).session;
+      set((state) => ({
+        currentSession: updated,
+        sessions: [updated, ...state.sessions.filter((item) => item.id !== updated.id)]
+      }));
+    } catch (error) {
+      set((state) => ({
+        currentSession: previousSession,
+        sessions: [previousSession, ...state.sessions.filter((item) => item.id !== previousSession.id)],
+        error: error instanceof Error ? error.message : String(error)
+      }));
     }
   },
   importCurrentSessionToMode: async (mode) => {
@@ -372,6 +448,7 @@ export const useAppStore = create<AppState>((set, get) => {
         researchRuns: researchRuns.runs,
         databaseResult: null,
         captureResult: null,
+        pendingAttachments: [],
         isBusy: false
       });
     } catch (error) {
@@ -380,12 +457,19 @@ export const useAppStore = create<AppState>((set, get) => {
   },
   sendMessage: async (message) => {
     const session = await ensureSession(get);
+    const pendingAttachments = get().pendingAttachments;
+    const effectiveMessage = message.trim() || (pendingAttachments.length > 0 ? "Please analyze the attached material." : "");
+    if (!effectiveMessage) {
+      return;
+    }
+
     set({ isBusy: true, error: null });
     try {
       const response = await client.sendTurn({
         sessionId: session.id,
         mode: get().mode,
-        message,
+        message: effectiveMessage,
+        attachmentIds: pendingAttachments.map((attachment) => attachment.id),
         topic: session.topic ?? undefined,
         includeResearch: get().settings?.researchEnabled ?? false
       });
@@ -398,6 +482,7 @@ export const useAppStore = create<AppState>((set, get) => {
         activeQuestions: response.activeQuestions,
         questionHistory: history.questions,
         activePanel: response.activeQuestions.length > 0 ? "history" : state.activePanel,
+        pendingAttachments: [],
         runtimeStatus: state.runtimeStatus
           ? { ...state.runtimeStatus, sessionCount: Math.max(state.runtimeStatus.sessionCount, state.sessions.length) }
           : state.runtimeStatus,
@@ -406,6 +491,33 @@ export const useAppStore = create<AppState>((set, get) => {
     } catch (error) {
       set({ error: error instanceof Error ? error.message : String(error), isBusy: false });
     }
+  },
+  uploadAttachments: async (files) => {
+    if (files.length === 0) {
+      return;
+    }
+
+    const session = await ensureSession(get);
+    set({ isBusy: true, error: null });
+    try {
+      const uploadedAttachments: AttachmentRecord[] = [];
+      for (const file of files) {
+        const response = await client.uploadAttachment(session.id, file);
+        uploadedAttachments.push(response.attachment);
+      }
+
+      set((state) => ({
+        pendingAttachments: mergePendingAttachments(state.pendingAttachments, uploadedAttachments),
+        isBusy: false
+      }));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : String(error), isBusy: false });
+    }
+  },
+  removePendingAttachment: (attachmentId) => {
+    set((state) => ({
+      pendingAttachments: state.pendingAttachments.filter((attachment) => attachment.id !== attachmentId)
+    }));
   },
   cancelTurn: async () => {
     const session = get().currentSession;
@@ -475,6 +587,21 @@ export const useAppStore = create<AppState>((set, get) => {
     const history = await client.getQuestionHistory(session.id);
     set({ activeQuestions: response.activeQuestions, questionHistory: history.questions });
   },
+  clearAllQuestions: async () => {
+    const session = get().currentSession;
+    if (!session) {
+      return;
+    }
+
+    set({ isBusy: true, error: null });
+    try {
+      const response = await client.clearAllQuestions(session.id);
+      const history = await client.getQuestionHistory(session.id);
+      set({ activeQuestions: response.activeQuestions, questionHistory: history.questions, isBusy: false });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : String(error), isBusy: false });
+    }
+  },
   runDatabaseQuery: async (query, interpret) => {
     const session = await ensureSession(get);
     set({ isBusy: true, error: null });
@@ -511,7 +638,11 @@ export const useAppStore = create<AppState>((set, get) => {
         analyze,
         crop: capture.crop
       });
-      set({ captureResult: result, isBusy: false });
+      set((state) => ({
+        captureResult: result,
+        pendingAttachments: mergePendingAttachments(state.pendingAttachments, [result.attachment]),
+        isBusy: false
+      }));
     } catch (error) {
       set({ error: error instanceof Error ? error.message : String(error), isBusy: false });
     }
@@ -544,7 +675,7 @@ export const useAppStore = create<AppState>((set, get) => {
         scheduleGitHubLoginPoll(flow.id);
       } else if (flow.state === "succeeded") {
         try {
-          await refreshRuntimeSettingsOnly();
+          await refreshRuntimeSettingsOnly(true);
         } catch (error) {
           set({
             githubLoginFlow: {
@@ -566,7 +697,7 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ isBusy: true, error: null, githubLoginFlow: null });
     try {
       await client.setGitHubModelsToken(token);
-      const settings = await refreshRuntimeSettingsOnly();
+      const settings = await refreshRuntimeSettingsOnly(true);
       set({ settings, isBusy: false });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : String(error), isBusy: false });
@@ -577,7 +708,7 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ isBusy: true, error: null, githubLoginFlow: null });
     try {
       await client.clearGitHubModelsToken();
-      const settings = await refreshRuntimeSettingsOnly();
+      const settings = await refreshRuntimeSettingsOnly(true);
       set({ settings, isBusy: false });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : String(error), isBusy: false });

@@ -45,10 +45,10 @@ export const MODE_METADATA: Record<SessionMode, ModeMetadata> = {
     emptyState: "No capture discussion yet. Take a screenshot or crop region, then ask what should be examined."
   },
   research_import: {
-    label: "Research",
-    channelTitle: "Imported evidence",
-    summary: "Use this after importing outside research so evidence review stays separate from ordinary conversation.",
-    prompt: "Import research first, then ask what it changes.",
-    emptyState: "No research discussion yet. Import GPT-Researcher output in Settings, then analyze it here."
+    label: "Reviewer",
+    channelTitle: "Review the evidence",
+    summary: "Use Reviewer after importing outside material so evidence review stays separate from ordinary conversation and weak support gets called out clearly.",
+    prompt: "Import material first, then ask what it supports, what it misses, and what still needs checking.",
+    emptyState: "This Reviewer lane is empty. Import a thread or outside research here, then review what it actually proves."
   }
 };

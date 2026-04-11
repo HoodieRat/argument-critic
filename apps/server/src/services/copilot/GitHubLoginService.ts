@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
@@ -12,7 +13,6 @@ const GITHUB_DEVICE_CODE_ENDPOINT = "https://github.com/login/device/code";
 const GITHUB_OAUTH_ACCESS_TOKEN_ENDPOINT = "https://github.com/login/oauth/access_token";
 const GITHUB_DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
 const DEFAULT_VERIFICATION_URI = "https://github.com/login/device";
-const DEFAULT_DEVICE_SCOPE = "read:user";
 
 export interface GitHubLoginFlowSnapshot {
   readonly id: string;
@@ -36,7 +36,12 @@ export interface GitHubLoginService {
 export interface GitHubLoginAdapter {
   isAvailable(): Promise<boolean>;
   getCurrentToken(): Promise<string | null>;
-  launchLogin(): Promise<void>;
+  launchLogin(): Promise<GitHubCliLoginLaunchResult>;
+}
+
+export interface GitHubCliLoginLaunchResult {
+  readonly userCode: string | null;
+  readonly verificationUri: string | null;
 }
 
 export interface GitHubDeviceFlowStartResult {
@@ -59,6 +64,7 @@ export interface GitHubDeviceFlowClient {
 }
 
 export interface DefaultGitHubLoginServiceOptions {
+  readonly authMethod?: GitHubLoginAuthMethod;
   readonly oauthClientId?: string;
   readonly cliAdapter?: GitHubLoginAdapter;
   readonly deviceFlowClient?: GitHubDeviceFlowClient;
@@ -81,6 +87,75 @@ interface MutableGitHubLoginFlow {
 
 const FLOW_TIMEOUT_MS = 5 * 60_000;
 const FLOW_POLL_INTERVAL_MS = 1_500;
+const CLI_LOGIN_LAUNCH_TIMEOUT_MS = 20_000;
+
+function getElectronResourcesPath(): string {
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  return typeof resourcesPath === "string" ? resourcesPath.trim() : "";
+}
+
+function resolveGitHubCliExecutable(): string {
+  const explicit = process.env.GH_PATH?.trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const resourcesPath = getElectronResourcesPath();
+
+  const bundledCandidates = [
+    resourcesPath
+      ? join(resourcesPath, "github-cli", process.platform === "win32" ? "gh.exe" : "gh")
+      : "",
+    resourcesPath
+      ? join(resourcesPath, "app.asar.unpacked", "github-cli", process.platform === "win32" ? "gh.exe" : "gh")
+      : "",
+    join(process.cwd(), "vendor", "github-cli", process.platform === "win32" ? "gh.exe" : "gh"),
+    join(process.cwd(), "build", "vendor", "github-cli", process.platform === "win32" ? "gh.exe" : "gh")
+  ].filter((candidate) => candidate.length > 0);
+
+  for (const candidate of bundledCandidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  const onPath = spawnSync(process.platform === "win32" ? "where" : "which", ["gh"], {
+    windowsHide: true,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  if (onPath.status === 0) {
+    return process.platform === "win32" ? "gh.exe" : "gh";
+  }
+
+  const candidates = [
+    join(process.env.ProgramFiles ?? "", "GitHub CLI", "gh.exe"),
+    join(process.env.ProgramFiles ?? "", "GitHub CLI", "bin", "gh.exe"),
+    join(process.env.LOCALAPPDATA ?? "", "Programs", "GitHub CLI", "gh.exe"),
+    join(process.env.LOCALAPPDATA ?? "", "Programs", "GitHub CLI", "bin", "gh.exe")
+  ].filter((candidate) => candidate.length > 0);
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return process.platform === "win32" ? "gh.exe" : "gh";
+}
+
+export function extractGitHubCliLoginLaunchResult(output: string): GitHubCliLoginLaunchResult | null {
+  const codeMatch = output.match(/one-time code(?:\s*\(|:\s*)([A-Z0-9-]{4,})\)?/i);
+  const uriMatch = output.match(/https:\/\/github\.com\/login\/device\S*/i);
+  if (!codeMatch && !uriMatch) {
+    return null;
+  }
+
+  return {
+    userCode: codeMatch?.[1]?.trim() ?? null,
+    verificationUri: uriMatch?.[0]?.trim() ?? DEFAULT_VERIFICATION_URI
+  };
+}
 
 function resolvePowerShellExecutable(): string {
   const systemRoot = process.env.SystemRoot ?? process.env.WINDIR;
@@ -111,10 +186,12 @@ function snapshot(flow: MutableGitHubLoginFlow): GitHubLoginFlowSnapshot {
   };
 }
 
-function buildUrlEncodedBody(values: Record<string, string>): string {
+function buildUrlEncodedBody(values: Record<string, string | null | undefined>): string {
   const body = new URLSearchParams();
   for (const [key, value] of Object.entries(values)) {
-    body.set(key, value);
+    if (typeof value === "string" && value.length > 0) {
+      body.set(key, value);
+    }
   }
   return body.toString();
 }
@@ -151,8 +228,11 @@ export class GitHubOAuthDeviceFlowClient implements GitHubDeviceFlowClient {
         "User-Agent": "ArgumentCritic/1.0.0"
       },
       body: buildUrlEncodedBody({
-        client_id: clientId,
-        scope: DEFAULT_DEVICE_SCOPE
+        // Do not constrain the device-flow token to a narrow OAuth scope here.
+        // GitHub's device-flow guidance does not require an explicit scope just
+        // to authenticate a CLI-style app, and a stored read:user token only
+        // unlocked a severely reduced model catalog in live testing.
+        client_id: clientId
       }),
       signal: AbortSignal.timeout(10_000)
     });
@@ -311,8 +391,10 @@ export class GitHubOAuthDeviceFlowClient implements GitHubDeviceFlowClient {
 }
 
 export class GitHubCliLoginAdapter implements GitHubLoginAdapter {
+  private readonly executable = resolveGitHubCliExecutable();
+
   public async isAvailable(): Promise<boolean> {
-    const result = spawnSync("gh", ["--version"], {
+    const result = spawnSync(this.executable, ["--version"], {
       windowsHide: true,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"]
@@ -323,7 +405,7 @@ export class GitHubCliLoginAdapter implements GitHubLoginAdapter {
 
   public async getCurrentToken(): Promise<string | null> {
     return await new Promise<string | null>((resolve) => {
-      const child = spawn("gh", ["auth", "token", "--hostname", "github.com"], {
+      const child = spawn(this.executable, ["auth", "token", "--hostname", "github.com"], {
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"]
       });
@@ -348,46 +430,110 @@ export class GitHubCliLoginAdapter implements GitHubLoginAdapter {
     });
   }
 
-  public async launchLogin(): Promise<void> {
-    const argumentsList = "'auth','login','--hostname','github.com','--git-protocol','https','--web','--skip-ssh-key'";
+  public async launchLogin(): Promise<GitHubCliLoginLaunchResult> {
+    const child = spawn(this.executable, ["auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web", "--clipboard", "--skip-ssh-key"], {
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"]
+    });
 
-    if (process.platform === "win32") {
-      await new Promise<void>((resolve, reject) => {
-        const launcher = spawn(resolvePowerShellExecutable(), [
-          "-NoLogo",
-          "-NoProfile",
-          "-Command",
-          `Start-Process -FilePath 'gh' -ArgumentList ${argumentsList} -WindowStyle Normal`
-        ], {
-          windowsHide: true,
-          stdio: "ignore"
-        });
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
 
-        launcher.once("error", reject);
-        launcher.once("close", (code) => {
-          if (code === 0) {
-            resolve();
+    return await new Promise<GitHubCliLoginLaunchResult>((resolve, reject) => {
+      let combinedOutput = "";
+      let answeredGitPrompt = false;
+      let confirmedBrowserOpen = false;
+      let resolved = false;
+
+      const finish = (result: GitHubCliLoginLaunchResult): void => {
+        if (resolved) {
+          return;
+        }
+
+        resolved = true;
+        clearTimeout(timeout);
+        resolve(result);
+      };
+
+      const fail = (message: string): void => {
+        if (resolved) {
+          return;
+        }
+
+        resolved = true;
+        clearTimeout(timeout);
+        reject(new Error(message));
+      };
+
+      const readLaunchResult = (): GitHubCliLoginLaunchResult | null => extractGitHubCliLoginLaunchResult(combinedOutput);
+
+      const handleChunk = (chunk: string): void => {
+        combinedOutput += chunk;
+
+        if (!answeredGitPrompt && /Authenticate Git with your GitHub credentials\?/i.test(combinedOutput)) {
+          answeredGitPrompt = true;
+          child.stdin.write("Y\n");
+        }
+
+        if (!confirmedBrowserOpen) {
+          const openPrompt = combinedOutput.match(/Press Enter to open\s+(https:\/\/github\.com\/login\/device\S*)\s+in your browser/i);
+          if (openPrompt) {
+            confirmedBrowserOpen = true;
+            child.stdin.write("\n");
+            finish({
+                userCode: extractGitHubCliLoginLaunchResult(combinedOutput)?.userCode ?? null,
+              verificationUri: openPrompt[1]?.trim() ?? DEFAULT_VERIFICATION_URI
+            });
             return;
           }
+        }
 
-          reject(new Error(`GitHub login launcher failed with exit code ${code ?? -1}.`));
-        });
+        const launchResult = readLaunchResult();
+        if (launchResult) {
+          finish(launchResult);
+        }
+      };
+
+      const timeout = setTimeout(() => {
+        const launchResult = readLaunchResult();
+        if (launchResult) {
+          finish(launchResult);
+          return;
+        }
+
+        child.kill();
+        fail("GitHub sign-in did not start correctly. Try Sign in with GitHub again.");
+      }, CLI_LOGIN_LAUNCH_TIMEOUT_MS);
+
+      child.stdout.on("data", handleChunk);
+      child.stderr.on("data", handleChunk);
+
+      child.once("error", (error) => {
+        fail(error.message);
       });
 
-      return;
-    }
+      child.once("close", (code) => {
+        if (resolved) {
+          return;
+        }
 
-    const child = spawn("gh", ["auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web", "--skip-ssh-key"], {
-      detached: true,
-      stdio: "ignore"
+        const launchResult = readLaunchResult();
+        if (launchResult) {
+          finish(launchResult);
+          return;
+        }
+
+        const normalized = combinedOutput.trim();
+        fail(normalized || `GitHub login launcher failed with exit code ${code ?? -1}.`);
+      });
     });
-    child.unref();
   }
 }
 
 export class DefaultGitHubLoginService implements GitHubLoginService {
   private readonly flows = new Map<string, MutableGitHubLoginFlow>();
   private runningFlowId: string | null = null;
+  private readonly authMethod: GitHubLoginAuthMethod;
   private readonly oauthClientId?: string;
   private readonly cliAdapter: GitHubLoginAdapter;
   private readonly deviceFlowClient: GitHubDeviceFlowClient;
@@ -399,9 +545,40 @@ export class DefaultGitHubLoginService implements GitHubLoginService {
     options: DefaultGitHubLoginServiceOptions = {}
   ) {
     this.oauthClientId = options.oauthClientId?.trim() || undefined;
+    this.authMethod = options.authMethod === "oauth-device" && this.oauthClientId ? "oauth-device" : options.authMethod ?? (this.oauthClientId ? "oauth-device" : "github-cli");
     this.cliAdapter = options.cliAdapter ?? new GitHubCliLoginAdapter();
     this.deviceFlowClient = options.deviceFlowClient ?? new GitHubOAuthDeviceFlowClient();
     this.wait = options.wait ?? wait;
+  }
+
+  public async hydrateExistingGitHubCliLogin(): Promise<boolean> {
+    if (this.authMethod !== "github-cli") {
+      return false;
+    }
+
+    if (this.tokenStore.getStatus().configured) {
+      return false;
+    }
+
+    try {
+      const available = await this.cliAdapter.isAvailable();
+      if (!available) {
+        return false;
+      }
+
+      const token = await this.cliAdapter.getCurrentToken();
+      if (!token) {
+        return false;
+      }
+
+      await this.tokenStore.storeToken(token);
+      return true;
+    } catch (error) {
+      this.logger.warn("Could not recover an existing GitHub CLI login during startup.", {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
   }
 
   public async startFlow(): Promise<GitHubLoginFlowSnapshot> {
@@ -415,23 +592,23 @@ export class DefaultGitHubLoginService implements GitHubLoginService {
     const flow: MutableGitHubLoginFlow = {
       id: randomUUID(),
       state: "checking",
-      message: this.oauthClientId ? "Preparing GitHub sign-in." : "Checking GitHub sign-in on this machine.",
+      message: "Preparing GitHub sign-in.",
       startedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      authMethod: this.oauthClientId ? "oauth-device" : "github-cli",
+      authMethod: this.authMethod,
       userCode: null,
       verificationUri: null,
       expiresAt: null,
-      reviewUri: this.oauthClientId ? `https://github.com/settings/connections/applications/${encodeURIComponent(this.oauthClientId)}` : null,
+      reviewUri: this.authMethod === "oauth-device" && this.oauthClientId ? `https://github.com/settings/connections/applications/${encodeURIComponent(this.oauthClientId)}` : null,
       accountLogin: null
     };
 
     this.flows.set(flow.id, flow);
     this.runningFlowId = flow.id;
 
-    if (this.oauthClientId) {
+    if (this.authMethod === "oauth-device") {
       try {
-        const deviceFlow = await this.deviceFlowClient.start(this.oauthClientId);
+        const deviceFlow = await this.deviceFlowClient.start(this.oauthClientId!);
         this.update(flow, {
           state: "waiting",
           message: "GitHub sign-in is ready. Paste the one-time code into GitHub to finish connecting.",
@@ -451,8 +628,52 @@ export class DefaultGitHubLoginService implements GitHubLoginService {
       return snapshot(flow);
     }
 
-    void this.runCliFlow(flow);
-    return snapshot(flow);
+    try {
+      const available = await this.cliAdapter.isAvailable();
+      if (!available) {
+        this.update(flow, {
+          state: "failed",
+          message: "The GitHub sign-in helper is missing on this build. If this is a source checkout, re-run Install Argument Critic.cmd. If this is an installed build, reinstall Argument Critic from the latest release."
+        });
+        this.runningFlowId = null;
+        return snapshot(flow);
+      }
+
+      const existingToken = await this.cliAdapter.getCurrentToken();
+      if (existingToken) {
+        this.update(flow, {
+          state: "importing",
+          message: "Importing your existing GitHub login."
+        });
+        await this.tokenStore.storeToken(existingToken);
+        this.update(flow, {
+          state: "succeeded",
+          message: "GitHub sign-in imported. Refreshing models now."
+        });
+        this.runningFlowId = null;
+        return snapshot(flow);
+      }
+
+      const launch = await this.cliAdapter.launchLogin();
+      this.update(flow, {
+        state: "waiting",
+        message: launch.userCode
+          ? "GitHub sign-in is ready. Your browser should open automatically. If GitHub asks for a code, use the one below."
+          : "GitHub sign-in was opened in your browser. Finish signing in there.",
+        userCode: launch.userCode,
+        verificationUri: launch.verificationUri
+      });
+
+      void this.completeCliFlow(flow);
+      return snapshot(flow);
+    } catch (error) {
+      this.update(flow, {
+        state: "failed",
+        message: error instanceof Error ? error.message : "GitHub sign-in could not be started."
+      });
+      this.runningFlowId = null;
+      return snapshot(flow);
+    }
   }
 
   public getFlow(flowId: string): GitHubLoginFlowSnapshot | null {
@@ -488,37 +709,8 @@ export class DefaultGitHubLoginService implements GitHubLoginService {
     flow.updatedAt = new Date().toISOString();
   }
 
-  private async runCliFlow(flow: MutableGitHubLoginFlow): Promise<void> {
+  private async completeCliFlow(flow: MutableGitHubLoginFlow): Promise<void> {
     try {
-      const available = await this.cliAdapter.isAvailable();
-      if (!available) {
-        this.update(flow, {
-          state: "failed",
-          message: "This build does not support direct GitHub browser sign-in yet. Install GitHub CLI from cli.github.com, or ask the app maintainer to enable built-in browser sign-in."
-        });
-        return;
-      }
-
-      const existingToken = await this.cliAdapter.getCurrentToken();
-      if (existingToken) {
-        this.update(flow, {
-          state: "importing",
-          message: "Importing your existing GitHub login."
-        });
-        await this.tokenStore.storeToken(existingToken);
-        this.update(flow, {
-          state: "succeeded",
-          message: "GitHub sign-in imported. Refreshing models now."
-        });
-        return;
-      }
-
-      this.update(flow, {
-        state: "waiting",
-        message: "GitHub sign-in was opened in your browser. Finish signing in there."
-      });
-      await this.cliAdapter.launchLogin();
-
       const deadline = Date.now() + FLOW_TIMEOUT_MS;
       while (Date.now() < deadline) {
         await this.wait(FLOW_POLL_INTERVAL_MS);

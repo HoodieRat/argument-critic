@@ -88,6 +88,7 @@ function createServices(options: StartServerOptions, databaseService: DatabaseSe
   const repositories = createRepositories(databaseService);
   const githubModelsTokenStore = new GitHubModelsTokenStore(repositories.settingsRepository, options.logger, options.githubModelsToken);
   const githubLoginService = options.githubLoginService ?? new DefaultGitHubLoginService(githubModelsTokenStore, options.logger, {
+    authMethod: options.config.githubLoginAuthMethod,
     oauthClientId: options.config.githubOAuthClientId,
     cliAdapter: options.githubLoginAdapter
   });
@@ -133,7 +134,7 @@ function createServices(options: StartServerOptions, databaseService: DatabaseSe
     questionQueueService
   );
   const attachmentStore = new AttachmentStore(options.config, repositories.attachmentsRepository);
-  const imageAnalysisService = new ImageAnalysisService(repositories.attachmentsRepository, repositories.auditLogRepository);
+  const imageAnalysisService = new ImageAnalysisService(repositories.attachmentsRepository, repositories.auditLogRepository, copilotClient);
   const researchAgent = new ResearchAgent(
     options.config.researchEnabled,
     repositories.settingsRepository,
@@ -147,6 +148,7 @@ function createServices(options: StartServerOptions, databaseService: DatabaseSe
     repositories.claimsRepository,
     repositories.contradictionsRepository,
     repositories.questionsRepository,
+    repositories.attachmentsRepository,
     repositories.settingsRepository,
     turnRouter,
     decisionMatrix,
@@ -156,6 +158,7 @@ function createServices(options: StartServerOptions, databaseService: DatabaseSe
     questioningAgent,
     databaseAgent,
     responseBuilder,
+    imageAnalysisService,
     questionQueueService,
     sessionSummaryService,
     persistenceCoordinator,
@@ -209,6 +212,9 @@ export async function startServer(options: StartServerOptions): Promise<ServerHa
   await databaseService.initialize();
 
   const services = createServices(options, databaseService);
+  if (services.githubLoginService instanceof DefaultGitHubLoginService) {
+    await services.githubLoginService.hydrateExistingGitHubCliLogin();
+  }
   const app = await createApp(services);
   await app.ready();
 

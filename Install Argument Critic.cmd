@@ -41,27 +41,48 @@ if not defined NODE_MAJOR goto :node_version_failed
 if %NODE_MAJOR% LSS 22 goto :node_version_failed
 
 :after_node
-echo [1/4] Enabling Corepack...
+call :resolve_gh
+if not defined GH_EXE goto :install_github_cli
+goto :after_github_cli
+
+:install_github_cli
+echo GitHub CLI was not found.
+echo Installing GitHub CLI with winget...
+call :ensure_winget
+if errorlevel 1 exit /b 1
+call winget install --id GitHub.cli -e --accept-package-agreements --accept-source-agreements --silent
+if errorlevel 1 goto :github_cli_install_failed
+call :refresh_gh_path
+call :resolve_gh
+if not defined GH_EXE goto :github_cli_install_failed
+
+:after_github_cli
+echo [1/5] Enabling Corepack...
 call corepack enable >nul 2>nul
 call corepack pnpm --version >nul 2>nul
 if errorlevel 1 goto :corepack_failed
 
-echo [2/4] Installing project dependencies...
+echo [2/5] Installing project dependencies...
 call corepack pnpm install
 if errorlevel 1 goto :install_failed
 
-echo [3/4] Preparing local project folders...
+echo [3/5] Preparing local project folders...
 call corepack pnpm run app:setup
 if errorlevel 1 goto :setup_failed
 
-echo [4/4] Prebuilding the app for fast starts...
+echo [4/5] Prebuilding the app for fast starts...
 call corepack pnpm build
 if errorlevel 1 goto :build_failed
+
+echo [5/5] Verifying GitHub sign-in support...
+call gh --version >nul 2>nul
+if errorlevel 1 goto :github_cli_verify_failed
 
 echo.
 echo Argument Critic is installed and ready.
 echo Open Start Argument Critic.cmd whenever you want to run the app.
 echo Open Settings in the app and choose Sign in with GitHub after startup.
+echo The installer already handled GitHub CLI so normal users should not need to paste a token manually.
 pause
 exit /b 0
 
@@ -77,6 +98,26 @@ goto :eof
 :refresh_node_path
 if exist "%ProgramFiles%\nodejs\node.exe" set "PATH=%ProgramFiles%\nodejs;%PATH%"
 if exist "%LocalAppData%\Programs\nodejs\node.exe" set "PATH=%LocalAppData%\Programs\nodejs;%PATH%"
+goto :eof
+
+:resolve_gh
+set "GH_EXE="
+for /f "delims=" %%I in ('where gh 2^>nul') do if not defined GH_EXE set "GH_EXE=%%I"
+if defined GH_EXE goto :eof
+if exist "%ProgramFiles%\GitHub CLI\gh.exe" set "GH_EXE=%ProgramFiles%\GitHub CLI\gh.exe"
+if defined GH_EXE goto :eof
+if exist "%ProgramFiles%\GitHub CLI\bin\gh.exe" set "GH_EXE=%ProgramFiles%\GitHub CLI\bin\gh.exe"
+if defined GH_EXE goto :eof
+if exist "%LocalAppData%\Programs\GitHub CLI\gh.exe" set "GH_EXE=%LocalAppData%\Programs\GitHub CLI\gh.exe"
+if defined GH_EXE goto :eof
+if exist "%LocalAppData%\Programs\GitHub CLI\bin\gh.exe" set "GH_EXE=%LocalAppData%\Programs\GitHub CLI\bin\gh.exe"
+goto :eof
+
+:refresh_gh_path
+if exist "%ProgramFiles%\GitHub CLI\" set "PATH=%ProgramFiles%\GitHub CLI;%PATH%"
+if exist "%ProgramFiles%\GitHub CLI\bin\" set "PATH=%ProgramFiles%\GitHub CLI\bin;%PATH%"
+if exist "%LocalAppData%\Programs\GitHub CLI\" set "PATH=%LocalAppData%\Programs\GitHub CLI;%PATH%"
+if exist "%LocalAppData%\Programs\GitHub CLI\bin\" set "PATH=%LocalAppData%\Programs\GitHub CLI\bin;%PATH%"
 goto :eof
 
 :read_node_major
@@ -105,6 +146,19 @@ exit /b 1
 :node_version_failed
 echo Node.js 22 or newer is required.
 echo Update Node.js to the current LTS release and then run this file again.
+pause
+exit /b 1
+
+:github_cli_install_failed
+echo Automatic GitHub CLI installation failed.
+echo Install GitHub CLI from https://cli.github.com/ and then run this file again.
+pause
+exit /b 1
+
+:github_cli_verify_failed
+echo.
+echo GitHub CLI could not be verified after install.
+echo Install GitHub CLI from https://cli.github.com/ and then run this file again.
 pause
 exit /b 1
 

@@ -75,9 +75,9 @@ export async function registerHealthRoutes(app: FastifyInstance, services: AppSe
       <h1>The local companion is running.</h1>
       <p>The desktop drawer should open automatically when you start the app. If you are looking at this page directly, the local API is healthy and waiting for the desktop shell to connect.</p>
       <ol>
-        <li>Run <strong>Start Argument Critic.cmd</strong> from the project root.</li>
+        <li>Open the installed Argument Critic app, or run <strong>Start Argument Critic.cmd</strong> from a source checkout.</li>
         <li>Wait for the desktop drawer window to open.</li>
-        <li>If this is your first run, open Settings and use GitHub sign-in or paste a token manually.</li>
+        <li>If this is your first run, open Settings and use GitHub sign-in or enter a credential manually.</li>
       </ol>
       <p>Health check: <code>/health</code></p>
     </main>

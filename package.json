@@ -2,7 +2,10 @@
   "name": "argument-critic",
   "version": "1.0.0",
   "private": true,
+  "description": "Local desktop app for pressure-testing ideas with persistent questions, structured critique, and GitHub-hosted model access.",
+  "author": "HoodieRat",
   "type": "module",
+  "main": "apps/desktop/dist/electron/main.js",
   "packageManager": "pnpm@10.0.0",
   "scripts": {
     "app:setup": "tsx scripts/install.ts",
@@ -10,10 +13,61 @@
     "cleanup": "tsx scripts/cleanup.ts",
     "build": "corepack pnpm --filter @argument-critic/desktop build && corepack pnpm --filter @argument-critic/server build",
     "build:legacy-extension": "corepack pnpm --filter @argument-critic/extension build",
-    "test": "corepack pnpm --filter @argument-critic/server test"
+    "test": "corepack pnpm --filter @argument-critic/server test",
+    "package:windows": "tsx scripts/packageWindows.ts",
+    "release:windows": "tsx scripts/packageWindows.ts"
+  },
+  "build": {
+    "appId": "io.github.hoodierat.argumentcritic",
+    "productName": "Argument Critic",
+    "artifactName": "Argument-Critic-Setup.${ext}",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist/release"
+    },
+    "files": [
+      "apps/desktop/dist/**/*",
+      "apps/server/dist/**/*",
+      "apps/server/src/services/db/migrations/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "vendor/github-cli",
+        "to": "github-cli"
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "shortcutName": "Argument Critic",
+      "deleteAppDataOnUninstall": false
+    }
   },
   "devDependencies": {
     "@types/node": "^22.15.2",
+    "electron": "35.2.0",
+    "electron-builder": "^26.8.1",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3",
     "vite": "^6.3.2"
@@ -24,5 +78,15 @@
       "electron",
       "esbuild"
     ]
+  },
+  "dependencies": {
+    "@fastify/cors": "11.1.0",
+    "@fastify/multipart": "9.0.3",
+    "better-sqlite3": "12.8.0",
+    "fastify": "5.3.2",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "zod": "3.24.3",
+    "zustand": "5.0.4"
   }
 }

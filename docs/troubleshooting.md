@@ -2,7 +2,7 @@
 
 ## Install Did Not Finish
 
-If `Install Argument Critic.cmd` stops with an error:
+If `Argument-Critic-Setup.exe` stops with an error:
 
 1. read the message in the installer window
 2. fix that one problem first
@@ -10,19 +10,21 @@ If `Install Argument Critic.cmd` stops with an error:
 
 Common reasons:
 
-- `winget` is missing
-- Node.js could not be installed or upgraded
-- the internet connection dropped during dependency install
+- Windows blocked or interrupted the installer
+- the installer could not write to the chosen install location
+- the download was incomplete
 
 ## The App Does Not Open
 
 Check these first:
 
-1. Did you run `Install Argument Critic.cmd` first?
-2. Did you leave the launcher window open after using `Start Argument Critic.cmd`?
-3. Did the launcher window show an error message?
+1. Did you finish the Windows installer?
+2. Did you launch the app from the Start Menu or desktop shortcut?
+3. If you are running from source instead, did you run `Install Argument Critic.cmd` first?
 
-If the launcher window reports a startup error, fix that issue and start again.
+If the installed app reports a startup error, close it fully and open it again from the Start Menu.
+
+If the source launcher window reports a startup error, fix that issue and start again.
 
 ## GitHub Sign-In Does Not Work
 
@@ -32,7 +34,9 @@ If the browser sign-in flow does not complete:
 2. finish the approval step in the browser
 3. return to the app and wait a moment
 
-If the app says direct browser sign-in is not enabled for this build, that is a maintainer configuration issue, not something a normal user should have to fix.
+If the installed app says the GitHub sign-in helper is missing, reinstall the latest release.
+
+If you are running from a source checkout and sign-in says the helper is missing, run `Install Argument Critic.cmd` again.
 
 ## No Models Are Showing Up
 
@@ -41,6 +45,10 @@ If the model list is empty:
 1. make sure sign-in completed successfully
 2. wait a moment for the app to refresh access
 3. open Settings and confirm the credential was stored
+
+If GitHub sign-in completed but you only see a single older Azure OpenAI model such as `GPT-4o`, remove the stored credential in Settings and sign in again so the app can import a fresh token.
+
+If you pasted a manual token and only see GitHub Models, that is expected for many normal GitHub tokens. Use `Sign in with GitHub` if you need the broader Copilot model catalog.
 
 ## Capture Is Not Working
 
@@ -54,13 +62,13 @@ If capture fails:
 
 ## The App Was Closed Unexpectedly
 
-Start it again with `Start Argument Critic.cmd`.
+Start it again from the Start Menu or desktop shortcut.
 
 The app keeps its own cleanup records and should recover from most interrupted runs automatically.
 
 ## Advanced Cleanup
 
-If you know how to use a terminal and the app had a badly interrupted run, you can use:
+If you are running from a source checkout and the app had a badly interrupted run, you can use:
 
 `corepack pnpm cleanup`
 

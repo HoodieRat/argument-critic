@@ -1,0 +1,1 @@
+ALTER TABLE sessions ADD COLUMN image_text_extraction_enabled INTEGER NOT NULL DEFAULT 1;

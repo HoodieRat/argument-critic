@@ -4,6 +4,5 @@ coverage/
 data/
 .env.local
 *.log
-pnpm-lock.yaml
 .DS_Store
 Thumbs.db
